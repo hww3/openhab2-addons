@@ -72,6 +72,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonSyntaxException;
 
 /**
  * The {@link VenstarThermostatHandler} is responsible for handling commands, which are
@@ -492,7 +493,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
                 goOffline(ThingStatusDetail.COMMUNICATION_ERROR, "Thermostat update failed: " + res.getReason());
             }
 
-        } catch (IOException e) {
+        } catch (IOException | JsonSyntaxException e) {
             log.info("Failed to update thermostat: " + e.getMessage());
             goOffline(ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
             return;
