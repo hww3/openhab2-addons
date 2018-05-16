@@ -4,8 +4,8 @@ public class VenstarInfoData {
     double cooltemp;
     double heattemp;
 
-    double state;
-    double mode;
+    int state;
+    int mode;
 
     public double getCooltemp() {
         return cooltemp;
@@ -23,19 +23,19 @@ public class VenstarInfoData {
         this.heattemp = heattemp;
     }
 
-    public double getState() {
+    public int getState() {
         return state;
     }
 
-    public void setState(double state) {
+    public void setState(int state) {
         this.state = state;
     }
 
-    public double getMode() {
+    public int getMode() {
         return mode;
     }
 
-    public void setMode(double mode) {
+    public void setMode(int mode) {
         this.mode = mode;
     }
 
