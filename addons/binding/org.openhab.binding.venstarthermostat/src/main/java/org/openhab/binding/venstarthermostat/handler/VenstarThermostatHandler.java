@@ -9,40 +9,26 @@ package org.openhab.binding.venstarthermostat.handler;
 
 import static org.openhab.binding.venstarthermostat.VenstarThermostatBindingConstants.*;
 
-import java.io.IOException;
 import java.math.BigDecimal;
-//import java.net.URISyntaxException;
-//import java.net.URL;
-//import java.security.KeyManagementException;
-//import java.security.NoSuchAlgorithmException;
-//import java.security.cert.X509Certificate;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import javax.ws.rs.core.UriBuilder;
-
-import org.apache.http.HttpEntity;
-import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.message.BasicNameValuePair;
-import org.apache.http.util.EntityUtils;
 import org.eclipse.jetty.client.HttpClient;
-import org.eclipse.jetty.client.api.Authentication;
-import org.eclipse.jetty.client.api.AuthenticationStore;
 import org.eclipse.jetty.client.api.ContentResponse;
 import org.eclipse.jetty.client.api.Request;
-import org.eclipse.jetty.client.util.BasicAuthentication;
 import org.eclipse.jetty.client.util.DigestAuthentication;
+import org.eclipse.jetty.http.HttpMethod;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.smarthome.config.core.status.ConfigStatusMessage;
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.thing.ChannelUID;
@@ -87,7 +73,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     public VenstarThermostatHandler(Thing thing) {
         super(thing);
-        httpClient = new HttpClient(true);
+        httpClient = new HttpClient(new SslContextFactory(true));
     }
 
     @Override
@@ -155,36 +141,30 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     public void initialize() {
         config = getConfigAs(VenstarThermostatConfiguration.class);
         stopHttpClient();
-        httpClient.getAuthenticationStore().addAuthentication(new DigestAuthentication(config.url,"*", config.getUsername(), config.getPassword());
-        startHttpClient();
-        scheduleCheckCommunication(1);
+        try {
+            httpClient.getAuthenticationStore().addAuthentication(new DigestAuthentication(new URI(config.url),
+                    "thermostat", config.getUsername(), config.getPassword()));
+            startHttpClient();
+            scheduleCheckCommunication(1);
+        } catch (URISyntaxException e) {
+            log.error("Invalid url " + config.url, e);
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
+        }
     }
 
     protected void checkCommunication() {
 
-        HttpResponse response = null;
         try {
-            response = getConnection();
-            log.debug("got response from venstar: " + response.getStatusLine());
-        } catch (Throwable e) {
-            log.warn("communication error: " + e.getMessage(), e);
-            goOffline(ThingStatusDetail.COMMUNICATION_ERROR,
-                    "Failed to connect to URL (" + url.toString() + "): " + e.getMessage());
-            return;
+            getData("");
+            log.debug("setting online");
+            goOnline();
+        } catch (VenstarCommunicationException | JsonSyntaxException e) {
+            log.debug("Unable to talk to thermostat", e);
+            goOffline(ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
+        } catch (VenstarAuthenticationException e) {
+            log.debug("Bad Credentials", e);
+            goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Authorization Failed");
         }
-
-        if (response.getStatusLine().getStatusCode() == 401 || response.getStatusLine().getStatusCode() == 403) {
-            goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Invalid Credentials");
-            return;
-        } else if (response.getStatusLine().getStatusCode() != 200) {
-            goOffline(ThingStatusDetail.COMMUNICATION_ERROR,
-                    "Unexpected response: " + response.getStatusLine().getStatusCode());
-            return;
-        }
-
-        log.debug("setting online");
-        goOnline();
-        return;
     }
 
     protected void scheduleCheckCommunication(int seconds) {
@@ -240,38 +220,12 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         }
     }
 
-    private void fetchUpdate() {
-        try {
-            log.debug("running refresh");
-            boolean success = updateSensorData();
-            if (success) {
-                updateState(new ChannelUID(getThing().getUID(), CHANNEL_TEMPERATURE), getTemperature());
-                updateState(new ChannelUID(getThing().getUID(), CHANNEL_EXTERNAL_TEMPERATURE), getOutdoorTemperature());
-                updateState(new ChannelUID(getThing().getUID(), CHANNEL_HUMIDITY), getHumidity());
-            }
-        } catch (Exception e) {
-            log.debug("Exception occurred during execution: {}", e.getMessage(), e);
-        }
-
-        try {
-            log.debug("updating info");
-            boolean success = updateInfoData();
-            if (success) {
-                updateState(new ChannelUID(getThing().getUID(), CHANNEL_HEATING_SETPOINT), getHeatingSetpoint());
-                updateState(new ChannelUID(getThing().getUID(), CHANNEL_COOLING_SETPOINT), getCoolingSetpoint());
-                updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_STATE), getSystemState());
-                updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_MODE), getSystemMode());
-            }
-        } catch (Exception e) {
-            log.debug("Exception occurred during execution: {}", e.getMessage(), e);
-        }
-    }
-
     private void startUpdatesTask() {
         Runnable runnable = new Runnable() {
             @Override
             public void run() {
-                fetchUpdate();
+                updateSensorData();
+                updateInfoData();
                 if (shouldRunUpdates) {
                     startUpdatesTask();
                 }
@@ -354,8 +308,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     private void updateThermostat(int heat, int cool, int mode) {
         Map<String, String> params = new HashMap<>();
-
-        log.debug("Updating thermostat {}  heat:{} cool {} mode: ", getThing().getLabel(), heat, cool, mode);
+        log.debug("Updating thermostat {}  heat:{} cool {} mode: {}", getThing().getLabel(), heat, cool, mode);
         if (heat > 0) {
             params.put("heattemp", String.valueOf(heat));
         }
@@ -363,124 +316,90 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             params.put("cooltemp", "" + String.valueOf(cool));
         }
         params.put("mode", String.valueOf(mode));
-
         try {
-            HttpResponse result = postConnection("/control", params);
-            if (log.isTraceEnabled()) {
-                log.trace("Result from theromstat: " + result.getStatusLine().toString());
-                log.trace("Result from theromstat: ");
-            }
-            if (result.getStatusLine().getStatusCode() == 401) {
-                goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Invalid credentials");
-                log.info("Failed to update thermostat: invalid credentials");
-                return;
-            }
-
-            HttpEntity entity = result.getEntity();
-            String data = EntityUtils.toString(entity, "UTF-8");
-            if (log.isTraceEnabled()) {
-                log.trace("Result from theromstat: " + data);
-            }
-
-            VenstarResponse res = new Gson().fromJson(data, VenstarResponse.class);
+            String result = postData("/control", params);
+            VenstarResponse res = new Gson().fromJson(result, VenstarResponse.class);
             if (res.isSuccess()) {
-                log.info("Updated thermostat");
+                log.debug("Updated thermostat");
             } else {
-                log.info("Failed to update: " + res.getReason());
+                log.warn("Failed to update thermostat: {}", res.getReason());
                 goOffline(ThingStatusDetail.COMMUNICATION_ERROR, "Thermostat update failed: " + res.getReason());
             }
-
-        } catch (IOException | JsonSyntaxException e) {
-            log.info("Failed to update thermostat: " + e.getMessage());
+        } catch (VenstarCommunicationException | JsonSyntaxException e) {
+            log.debug("Unable to fetch info data", e);
             goOffline(ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
-            return;
+        } catch (VenstarAuthenticationException e) {
+            goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Authorization Failed");
         }
-
     }
 
-    private boolean updateSensorData() {
+    private void updateSensorData() {
         try {
-            String sensorData = getData("/query/sensors");
-            if (log.isTraceEnabled()) {
-                log.trace("got sensordata from thermostat: " + sensorData);
-            }
-
-            VenstarSensorData res = new Gson().fromJson(sensorData, VenstarSensorData.class);
-
-            this.sensorData = res.getSensors();
-            return true;
-        } catch (Exception e) {
-
-            log.debug("Unable to fetch url '{}': {}", url, e.getMessage());
-            return false;
+            String response = getData("/query/sensors");
+            VenstarSensorData res = new Gson().fromJson(response, VenstarSensorData.class);
+            sensorData = res.getSensors();
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_TEMPERATURE), getTemperature());
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_EXTERNAL_TEMPERATURE), getOutdoorTemperature());
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_HUMIDITY), getHumidity());
+        } catch (VenstarCommunicationException | JsonSyntaxException e) {
+            log.debug("Unable to fetch info data", e);
+            goOffline(ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
+        } catch (VenstarAuthenticationException e) {
+            goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Authorization Failed");
         }
     }
 
     private boolean updateInfoData() {
         try {
-
-            String infoData = getData("/query/info");
-            if (log.isTraceEnabled()) {
-                log.trace("got info from thermostat: " + infoData);
-            }
-            VenstarInfoData id = new Gson().fromJson(infoData, VenstarInfoData.class);
-            if (id != null) {
-                this.infoData = id;
-            }
-            return true;
-        } catch (Exception e) {
-            log.debug("Unable to fetch url '{}': {}", url, e.getMessage());
-            return false;
+            String response = getData("/query/info");
+            infoData = new Gson().fromJson(response, VenstarInfoData.class);
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_HEATING_SETPOINT), getHeatingSetpoint());
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_COOLING_SETPOINT), getCoolingSetpoint());
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_STATE), getSystemState());
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_MODE), getSystemMode());
+        } catch (VenstarCommunicationException | JsonSyntaxException e) {
+            log.debug("Unable to fetch info data", e);
+            goOffline(ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
+        } catch (VenstarAuthenticationException e) {
+            goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Authorization Failed");
         }
+        return false;
     }
 
-    String getData(String path) {
-        try {
+    private String getData(String path) throws VenstarAuthenticationException, VenstarCommunicationException {
+        Request request = httpClient.newRequest(config.getUrl() + path).timeout(TIMEOUT, TimeUnit.SECONDS);
+        return sendRequest(request);
+    }
 
-            Request request = httpClient.newRequest(config.getUrl() + path).timeout(TIMEOUT, TimeUnit.SECONDS);
-            ContentResponse response;
-            response = request.send();
+    private String postData(String path, Map<String, String> params)
+            throws VenstarAuthenticationException, VenstarCommunicationException {
+        Request request = httpClient.newRequest(config.getUrl() + path).timeout(TIMEOUT, TimeUnit.SECONDS)
+                .method(HttpMethod.POST);
+        params.forEach((k, v) -> {
+            request.param(k, v);
+        });
+        return sendRequest(request);
+    }
+
+    private String sendRequest(Request request) throws VenstarAuthenticationException, VenstarCommunicationException {
+        log.trace("sendRequest: requesting {}", request.getURI());
+        try {
+            ContentResponse response = request.send();
             if (response.getStatus() == 401) {
-                goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Invalid credentials");
-                return null;
+                throw new VenstarAuthenticationException();
             }
 
             if (response.getStatus() != 200) {
-                goOffline(ThingStatusDetail.COMMUNICATION_ERROR,
+                throw new VenstarCommunicationException(
                         "Error communitcating with thermostat. Error Code: " + response.getStatus());
-                return null;
             }
-            return response.getContentAsString();
+            String content = response.getContentAsString();
+            log.trace("sendRequest: response {}", content);
+            return content;
         } catch (InterruptedException | TimeoutException | ExecutionException e) {
-            log.warn("failed to open connection: {}", e.getMessage());
-            goOffline(ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
-            return null;
+            throw new VenstarCommunicationException(e);
+
         }
-
-    }
-
-    HttpResponse postConnection(String path, Map<String, String> params) throws IOException {
-        DefaultHttpClient httpclient = buildHttpClient();
-
-        UriBuilder builder = UriBuilder.fromUri(getThing().getProperties().get(PROPERTY_URL));
-        if (path != null) {
-            builder.path(path);
-        }
-
-        HttpPost post = new HttpPost(builder.build());
-        List<NameValuePair> urlParameters = new ArrayList<NameValuePair>();
-
-        for (Entry<String, String> ent : params.entrySet()) {
-            if (log.isTraceEnabled()) {
-                log.trace("setting " + ent.getKey() + ": " + ent.getValue());
-            }
-            urlParameters.add(new BasicNameValuePair(ent.getKey(), ent.getValue()));
-        }
-        post.setEntity(new UrlEncodedFormEntity(urlParameters));
-
-        HttpResponse response = httpclient.execute(post);
-
-        return response;
     }
 
     private void startHttpClient() {
@@ -502,6 +421,24 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             } catch (Exception e) {
                 log.error("Could not stop HttpClient", e);
             }
+        }
+    }
+
+    @SuppressWarnings("serial")
+    private class VenstarAuthenticationException extends Exception {
+        public VenstarAuthenticationException() {
+            super("Invalid Credentials");
+        }
+    }
+
+    @SuppressWarnings("serial")
+    private class VenstarCommunicationException extends Exception {
+        public VenstarCommunicationException(Exception e) {
+            super(e);
+        }
+
+        public VenstarCommunicationException(String message) {
+            super(message);
         }
     }
 
