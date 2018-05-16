@@ -1,4 +1,4 @@
-package org.openhab.binding.venstarthermostat.internal;
+package org.openhab.binding.venstarthermostat.internal.discovery;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

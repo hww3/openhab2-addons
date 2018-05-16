@@ -11,51 +11,40 @@ import static org.openhab.binding.venstarthermostat.VenstarThermostatBindingCons
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.net.MalformedURLException;
-import java.net.URISyntaxException;
-import java.net.URL;
-import java.security.KeyManagementException;
-import java.security.NoSuchAlgorithmException;
-import java.security.cert.X509Certificate;
+//import java.net.URISyntaxException;
+//import java.net.URL;
+//import java.security.KeyManagementException;
+//import java.security.NoSuchAlgorithmException;
+//import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLException;
-import javax.net.ssl.SSLSession;
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.TrustManager;
-import javax.net.ssl.X509TrustManager;
 import javax.ws.rs.core.UriBuilder;
 
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.NameValuePair;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.Credentials;
-import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
-import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.conn.ClientConnectionManager;
-import org.apache.http.conn.scheme.Scheme;
-import org.apache.http.conn.ssl.SSLSocketFactory;
-import org.apache.http.conn.ssl.X509HostnameVerifier;
-import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
-import org.eclipse.smarthome.config.core.Configuration;
+import org.eclipse.jetty.client.HttpClient;
+import org.eclipse.jetty.client.api.Authentication;
+import org.eclipse.jetty.client.api.AuthenticationStore;
+import org.eclipse.jetty.client.api.ContentResponse;
+import org.eclipse.jetty.client.api.Request;
+import org.eclipse.jetty.client.util.BasicAuthentication;
+import org.eclipse.jetty.client.util.DigestAuthentication;
 import org.eclipse.smarthome.config.core.status.ConfigStatusMessage;
 import org.eclipse.smarthome.core.library.types.DecimalType;
-import org.eclipse.smarthome.core.library.types.PercentType;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingStatus;
@@ -63,7 +52,9 @@ import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.thing.binding.ConfigStatusThingHandler;
 import org.eclipse.smarthome.core.types.Command;
 import org.eclipse.smarthome.core.types.State;
+import org.eclipse.smarthome.core.types.UnDefType;
 import org.openhab.binding.venstarthermostat.VenstarThermostatBindingConstants;
+import org.openhab.binding.venstarthermostat.internal.VenstarThermostatConfiguration;
 import org.openhab.binding.venstarthermostat.model.VenstarInfoData;
 import org.openhab.binding.venstarthermostat.model.VenstarResponse;
 import org.openhab.binding.venstarthermostat.model.VenstarSensor;
@@ -82,108 +73,47 @@ import com.google.gson.JsonSyntaxException;
  */
 public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
+    private static final int TIMEOUT = 30;
     private Logger log = LoggerFactory.getLogger(VenstarThermostatHandler.class);
     ScheduledFuture<?> refreshJob;
-
-    private String username;
-    private String password;
-    private URL url;
     private BigDecimal refresh;
     private List<VenstarSensor> sensorData = new ArrayList<>();
     private VenstarInfoData infoData = new VenstarInfoData();
     private Future<?> initializeTask;
     private Future<?> updatesTask;
     private boolean shouldRunUpdates = false;
-
-    // Create a trust manager that does not validate certificate chains
-    TrustManager[] trustAllCerts = new TrustManager[] { new X509TrustManager() {
-        @Override
-        public java.security.cert.X509Certificate[] getAcceptedIssuers() {
-            return null;
-        }
-
-        @Override
-        public void checkClientTrusted(X509Certificate[] certs, String authType) {
-        }
-
-        @Override
-        public void checkServerTrusted(X509Certificate[] certs, String authType) {
-        }
-    } };
-
-    // Install the all-trusting trust manager
-    final SSLContext sc;
-
-    // Create all-trusting host name verifier
-    X509HostnameVerifier allHostsValid = new X509HostnameVerifier() {
-
-        @Override
-        public boolean verify(String hostname, SSLSession arg1) {
-            return true;
-        }
-
-        @Override
-        public void verify(String host, SSLSocket ssl) throws IOException {
-        }
-
-        @Override
-        public void verify(String host, X509Certificate cert) throws SSLException {
-        }
-
-        @Override
-        public void verify(String host, String[] cns, String[] subjectAlts) throws SSLException {
-        }
-
-    };
+    private VenstarThermostatConfiguration config;
+    private HttpClient httpClient;
 
     public VenstarThermostatHandler(Thing thing) {
         super(thing);
-        try {
-            sc = SSLContext.getInstance("SSL");
-            sc.init(null, trustAllCerts, new java.security.SecureRandom());
-        } catch (NoSuchAlgorithmException | KeyManagementException e) {
-            log.error("Unable to configure SSL context: " + e.getMessage());
-            throw (new RuntimeException(e));
-        }
-
+        httpClient = new HttpClient(true);
     }
 
     @Override
     public Collection<ConfigStatusMessage> getConfigStatus() {
         log.warn("getConfigStatus called.");
         Collection<ConfigStatusMessage> status = new ArrayList<>();
-        try {
-            String username = (String) (getThing().getConfiguration().get(CONFIG_USERNAME));
-
-            if (username == null || username.isEmpty()) {
-                log.warn("username is empty");
-                status.add(ConfigStatusMessage.Builder.error(CONFIG_USERNAME).withMessageKeySuffix(EMPTY_INVALID)
-                        .withArguments(CONFIG_USERNAME).build());
-            }
-
-            String password = (String) (getThing().getConfiguration().get(CONFIG_PASSWORD));
-
-            if (password == null || password.isEmpty()) {
-                log.warn("password is empty");
-                status.add(ConfigStatusMessage.Builder.error(CONFIG_PASSWORD).withMessageKeySuffix(EMPTY_INVALID)
-                        .withArguments(CONFIG_PASSWORD).build());
-            }
-
-            BigDecimal refresh = (BigDecimal) (getThing().getConfiguration().get(CONFIG_REFRESH));
-
-            if (refresh.intValue() < 10) {
-                log.warn("refresh is too small: " + refresh.intValue());
-
-                status.add(ConfigStatusMessage.Builder.error(CONFIG_REFRESH).withMessageKeySuffix(REFRESH_INVALID)
-                        .withArguments(CONFIG_REFRESH).build());
-            }
-        } catch (Throwable th) {
-            log.error(th.getMessage(), th);
-            status.add(ConfigStatusMessage.Builder.error("AIEEE").withMessageKeySuffix(th.getMessage()).build());
+        VenstarThermostatConfiguration config = getConfigAs(VenstarThermostatConfiguration.class);
+        if (config.getUsername() == null || config.getUsername().isEmpty()) {
+            log.warn("username is empty");
+            status.add(ConfigStatusMessage.Builder.error(CONFIG_USERNAME).withMessageKeySuffix(EMPTY_INVALID)
+                    .withArguments(CONFIG_USERNAME).build());
         }
 
-        log.warn("getConfigStatus returning " + status);
+        if (config.getPassword() == null || config.getPassword().isEmpty()) {
+            log.warn("password is empty");
+            status.add(ConfigStatusMessage.Builder.error(CONFIG_PASSWORD).withMessageKeySuffix(EMPTY_INVALID)
+                    .withArguments(CONFIG_PASSWORD).build());
+        }
 
+        if (config.getRefresh() == null || config.getRefresh().intValue() < 10) {
+            log.warn("refresh is too small: {}", config.getRefresh());
+
+            status.add(ConfigStatusMessage.Builder.error(CONFIG_REFRESH).withMessageKeySuffix(REFRESH_INVALID)
+                    .withArguments(CONFIG_REFRESH).build());
+        }
+        log.debug("getConfigStatus returning {}", status);
         return status;
     }
 
@@ -223,33 +153,11 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     @Override
     public void initialize() {
-        getConfigurationFromThing();
-
+        config = getConfigAs(VenstarThermostatConfiguration.class);
+        stopHttpClient();
+        httpClient.getAuthenticationStore().addAuthentication(new DigestAuthentication(config.url,"*", config.getUsername(), config.getPassword());
+        startHttpClient();
         scheduleCheckCommunication(1);
-    }
-
-    protected boolean getConfigurationFromThing() {
-        Configuration config = getThing().getConfiguration();
-        Map<String, String> properties = getThing().getProperties();
-        username = (String) config.get(CONFIG_USERNAME);
-        password = (String) config.get(CONFIG_PASSWORD);
-        refresh = (BigDecimal) config.get(CONFIG_REFRESH);
-
-        final String u = properties.get(PROPERTY_URL);
-        final URL url1;
-
-        try {
-            url1 = new URL(u);
-        } catch (MalformedURLException e) {
-            goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Invalid device URL: " + e.getMessage());
-            return false;
-        }
-
-        url = url1;
-
-        log.info("Got configuration from thing. Url=" + url);
-
-        return true;
     }
 
     protected void checkCommunication() {
@@ -281,7 +189,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     protected void scheduleCheckCommunication(int seconds) {
 
-        log.info("running communication check in " + seconds + " seconds");
+        log.info("running communication check in {} seconds", seconds);
         Future<?> initializeTask1 = scheduler.schedule(new Runnable() {
             @Override
             public void run() {
@@ -382,7 +290,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             }
         }
 
-        return DecimalType.ZERO;
+        return UnDefType.UNDEF;
     }
 
     private State getHumidity() {
@@ -394,7 +302,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             }
         }
 
-        return PercentType.ZERO;
+        return UnDefType.UNDEF;
     }
 
     private State getOutdoorTemperature() {
@@ -404,7 +312,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
                 return new DecimalType(sensor.getTemp());
             }
         }
-        return DecimalType.ZERO;
+        return UnDefType.UNDEF;
     }
 
     private void setCoolingSetpoint(int cool) {
@@ -429,42 +337,32 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     }
 
     private State getCoolingSetpoint() {
-        if (log.isTraceEnabled()) {
-            log.trace("CoolingSetpoint: " + infoData.getCooltemp() + " -> " + new DecimalType(infoData.getCooltemp()));
-        }
         return new DecimalType(infoData.getCooltemp());
     }
 
     private State getHeatingSetpoint() {
-        if (log.isTraceEnabled()) {
-            log.trace("HeatingSetpoint: " + infoData.getHeattemp() + " -> " + new DecimalType(infoData.getHeattemp()));
-        }
-
         return new DecimalType(infoData.getHeattemp());
     }
 
     private State getSystemState() {
-        int num = (int) Math.round(infoData.getState());
-        return new DecimalType(num);
+        return new DecimalType(infoData.getState());
     }
 
     private State getSystemMode() {
-        int num = (int) Math.round(infoData.getMode());
-        return new DecimalType(num);
+        return new DecimalType(infoData.getMode());
     }
 
     private void updateThermostat(int heat, int cool, int mode) {
         Map<String, String> params = new HashMap<>();
 
-        log.debug(
-                "Updating thermostat " + getThing().getLabel() + " heat:" + heat + " cool:" + cool + " mode: " + mode);
+        log.debug("Updating thermostat {}  heat:{} cool {} mode: ", getThing().getLabel(), heat, cool, mode);
         if (heat > 0) {
-            params.put("heattemp", "" + heat);
+            params.put("heattemp", String.valueOf(heat));
         }
         if (cool > 0) {
-            params.put("cooltemp", "" + cool);
+            params.put("cooltemp", "" + String.valueOf(cool));
         }
-        params.put("mode", "" + mode);
+        params.put("mode", String.valueOf(mode));
 
         try {
             HttpResponse result = postConnection("/control", params);
@@ -483,7 +381,6 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             if (log.isTraceEnabled()) {
                 log.trace("Result from theromstat: " + data);
             }
-            ;
 
             VenstarResponse res = new Gson().fromJson(data, VenstarResponse.class);
             if (res.isSuccess()) {
@@ -538,65 +435,28 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     }
 
     String getData(String path) {
-
         try {
-            HttpResponse response = getConnection(path);
 
-            if (response.getStatusLine().getStatusCode() == 401) {
+            Request request = httpClient.newRequest(config.getUrl() + path).timeout(TIMEOUT, TimeUnit.SECONDS);
+            ContentResponse response;
+            response = request.send();
+            if (response.getStatus() == 401) {
                 goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Invalid credentials");
                 return null;
             }
 
-            HttpEntity entity = response.getEntity();
-            String sensorData = EntityUtils.toString(entity, "UTF-8");
-
-            return sensorData;
-        } catch (IOException e) {
-            log.warn("failed to open connection: " + e.getMessage());
+            if (response.getStatus() != 200) {
+                goOffline(ThingStatusDetail.COMMUNICATION_ERROR,
+                        "Error communitcating with thermostat. Error Code: " + response.getStatus());
+                return null;
+            }
+            return response.getContentAsString();
+        } catch (InterruptedException | TimeoutException | ExecutionException e) {
+            log.warn("failed to open connection: {}", e.getMessage());
             goOffline(ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
             return null;
-        } catch (URISyntaxException use) {
-            log.warn("bad uri: " + use.getMessage());
-            goOffline(ThingStatusDetail.CONFIGURATION_ERROR, use.getMessage());
-            return null;
         }
 
-    }
-
-    HttpResponse getConnection() throws IOException, URISyntaxException {
-        return getConnection(null);
-    }
-
-    HttpResponse getConnection(String path) throws IOException, URISyntaxException {
-
-        DefaultHttpClient httpclient = buildHttpClient();
-
-        UriBuilder builder = UriBuilder.fromUri(url.toURI());
-        if (path != null) {
-            builder.path(path);
-        }
-
-        HttpGet httpget = new HttpGet(builder.build());
-
-        HttpResponse response = httpclient.execute(httpget);
-
-        return response;
-    }
-
-    DefaultHttpClient buildHttpClient() {
-        Credentials creds = new UsernamePasswordCredentials(username, password);
-        org.apache.http.client.CredentialsProvider credsProvider = new BasicCredentialsProvider();
-        credsProvider.setCredentials(new AuthScope(AuthScope.ANY_HOST, AuthScope.ANY_PORT), creds);
-
-        SSLSocketFactory sf = new SSLSocketFactory(sc, allHostsValid);
-
-        DefaultHttpClient httpclient = new DefaultHttpClient();
-        ClientConnectionManager manager = httpclient.getConnectionManager();
-        manager.getSchemeRegistry().register(new Scheme("https", 443, sf));
-
-        httpclient.setCredentialsProvider(credsProvider);
-
-        return httpclient;
     }
 
     HttpResponse postConnection(String path, Map<String, String> params) throws IOException {
@@ -621,6 +481,28 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         HttpResponse response = httpclient.execute(post);
 
         return response;
+    }
+
+    private void startHttpClient() {
+        if (!httpClient.isStarted()) {
+            try {
+                httpClient.start();
+            } catch (Exception e) {
+                log.error("Could not stop HttpClient", e);
+            }
+        }
+    }
+
+    private void stopHttpClient() {
+        httpClient.getAuthenticationStore().clearAuthentications();
+        httpClient.getAuthenticationStore().clearAuthenticationResults();
+        if (httpClient.isStarted()) {
+            try {
+                httpClient.stop();
+            } catch (Exception e) {
+                log.error("Could not stop HttpClient", e);
+            }
+        }
     }
 
 }

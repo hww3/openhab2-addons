@@ -5,7 +5,7 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.venstarthermostat.internal;
+package org.openhab.binding.venstarthermostat.internal.discovery;
 
 import static org.openhab.binding.venstarthermostat.VenstarThermostatBindingConstants.THING_TYPE_COLOR_TOUCH;
 
