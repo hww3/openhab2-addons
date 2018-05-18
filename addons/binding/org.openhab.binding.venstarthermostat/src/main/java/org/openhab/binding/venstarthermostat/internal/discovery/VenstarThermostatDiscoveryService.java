@@ -31,9 +31,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Component(service = DiscoveryService.class, immediate = true, configurationPid = "binding.venstarthermostat")
-public class VenstarThermostatDiscoveryParticipant extends AbstractDiscoveryService
+public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService
         implements ExtendedDiscoveryService {
-    private final Logger log = LoggerFactory.getLogger(VenstarThermostatDiscoveryParticipant.class);
+    private final Logger log = LoggerFactory.getLogger(VenstarThermostatDiscoveryService.class);
     private static final String COLOR_TOUCH_DISCOVERY_MESSAGE = "M-SEARCH * HTTP/1.1\r\n"
             + "Host: 239.255.255.250:1900\r\n" + "Man: ssdp:discover\r\n" + "ST: colortouch:ecp\r\n" + "\r\n";
     private static final Pattern USN_PATTERN = Pattern
@@ -41,7 +41,7 @@ public class VenstarThermostatDiscoveryParticipant extends AbstractDiscoveryServ
     private static final String SSDP_MATCH = "colortouch:ecp";
     protected DiscoveryServiceCallback discoveryServiceCallback;
 
-    public VenstarThermostatDiscoveryParticipant() {
+    public VenstarThermostatDiscoveryService() {
         super(VenstarThermostatBindingConstants.SUPPORTED_THING_TYPES, 30, true);
     }
 
