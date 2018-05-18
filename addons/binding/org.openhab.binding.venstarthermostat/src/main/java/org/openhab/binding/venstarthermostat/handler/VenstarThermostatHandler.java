@@ -9,9 +9,9 @@ package org.openhab.binding.venstarthermostat.handler;
 
 import static org.openhab.binding.venstarthermostat.VenstarThermostatBindingConstants.*;
 
-import java.math.BigDecimal;
-import java.net.URI;
+import java.net.MalformedURLException;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -29,6 +29,7 @@ import org.eclipse.jetty.client.api.Request;
 import org.eclipse.jetty.client.util.DigestAuthentication;
 import org.eclipse.jetty.http.HttpMethod;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
+import org.eclipse.smarthome.config.core.Configuration;
 import org.eclipse.smarthome.config.core.status.ConfigStatusMessage;
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.thing.ChannelUID;
@@ -56,24 +57,24 @@ import com.google.gson.JsonSyntaxException;
  * sent to one of the channels.
  *
  * @author William Welliver - Initial contribution
+ * @author Dan Cunningham
  */
 public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     private static final int TIMEOUT = 30;
     private Logger log = LoggerFactory.getLogger(VenstarThermostatHandler.class);
     ScheduledFuture<?> refreshJob;
-    private BigDecimal refresh;
     private List<VenstarSensor> sensorData = new ArrayList<>();
     private VenstarInfoData infoData = new VenstarInfoData();
-    private Future<?> initializeTask;
     private Future<?> updatesTask;
-    private boolean shouldRunUpdates = false;
     private VenstarThermostatConfiguration config;
     private HttpClient httpClient;
+    private URL baseURL;
 
     public VenstarThermostatHandler(Thing thing) {
         super(thing);
         httpClient = new HttpClient(new SslContextFactory(true));
+        log.trace("VenstarThermostatHandler for thing {}", getThing().getUID());
     }
 
     @Override
@@ -109,134 +110,95 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             log.warn("Invalid cooling setpoint command " + command);
             return;
         }
+        int value = ((DecimalType) command).intValue();
         if (channelUID.getId().equals(CHANNEL_HEATING_SETPOINT)) {
-            // Note: if communication with thing fails for some reason,
-            // indicate that by setting the status with detail information
-            // updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
-            // "Could not control device at IP address x.x.x.x");
-            log.debug("Setting heating setpoint to " + command.toFullString());
-            setHeatingSetpoint(((DecimalType) command).intValue());
-
+            log.debug("Setting heating setpoint to {}", value);
+            setHeatingSetpoint(value);
         }
         if (channelUID.getId().equals(CHANNEL_COOLING_SETPOINT)) {
-            log.debug("Setting cooling setpoint to " + command.toFullString());
-            setCoolingSetpoint(((DecimalType) command).intValue());
-
+            log.debug("Setting cooling setpoint to {}", value);
+            setCoolingSetpoint(value);
         }
         if (channelUID.getId().equals(CHANNEL_SYSTEM_MODE)) {
-            log.debug("Setting system mode to " + command.toFullString());
-            setSystemMode(((DecimalType) command).intValue());
-
+            log.debug("Setting system mode to  {}", value);
+            setSystemMode(value);
         }
     }
 
-    public void updateUrl(String url) {
-        Map<String, String> props = editProperties();
-        props.put(VenstarThermostatBindingConstants.PROPERTY_URL, url);
-        updateProperties(props);
-        thingUpdated(getThing());
+    @Override
+    public void dispose() {
+        stopUpdateTasks();
     }
 
     @Override
     public void initialize() {
         config = getConfigAs(VenstarThermostatConfiguration.class);
-        stopHttpClient();
+        stopUpdateTasks();
         try {
-            httpClient.getAuthenticationStore().addAuthentication(new DigestAuthentication(new URI(config.url),
+            baseURL = new URL(config.getUrl());
+            httpClient.getAuthenticationStore().addAuthentication(new DigestAuthentication(baseURL.toURI(),
                     "thermostat", config.getUsername(), config.getPassword()));
-            startHttpClient();
-            scheduleCheckCommunication(1);
-        } catch (URISyntaxException e) {
+            startUpdatesTask();
+        } catch (MalformedURLException | URISyntaxException e) {
             log.error("Invalid url " + config.url, e);
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
         }
     }
 
-    protected void checkCommunication() {
-
-        try {
-            getData("");
-            log.debug("setting online");
-            goOnline();
-        } catch (VenstarCommunicationException | JsonSyntaxException e) {
-            log.debug("Unable to talk to thermostat", e);
-            goOffline(ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
-        } catch (VenstarAuthenticationException e) {
-            log.debug("Bad Credentials", e);
-            goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Authorization Failed");
-        }
-    }
-
-    protected void scheduleCheckCommunication(int seconds) {
-
-        log.info("running communication check in {} seconds", seconds);
-        Future<?> initializeTask1 = scheduler.schedule(new Runnable() {
-            @Override
-            public void run() {
-                checkCommunication();
-            }
-        }, seconds, TimeUnit.SECONDS);
-
-        // only one initialization task at a time, please.
-        Future<?> i = initializeTask;
-        initializeTask = initializeTask1;
-        if (i != null && !i.isDone()) {
-            i.cancel(true);
-        }
+    public void updateUrl(String url) {
+        Configuration configuration = editConfiguration();
+        configuration.put(VenstarThermostatBindingConstants.PROPERTY_URL, url);
+        updateConfiguration(configuration);
+        thingUpdated(getThing());
     }
 
     protected void goOnline() {
-        // we don't need to check communications if we're online already.
-        // only one initialization task at a time, please.
-        if (initializeTask != null && !initializeTask.isDone()) {
-            initializeTask.cancel(true);
+        if (getThing().getStatus() != ThingStatus.ONLINE) {
+            updateStatus(ThingStatus.ONLINE);
         }
-
-        if (updatesTask != null && !updatesTask.isDone()) {
-            updatesTask.cancel(true);
-        }
-        shouldRunUpdates = true;
-        updateStatus(ThingStatus.ONLINE);
-        startUpdatesTask();
     }
 
     protected void goOffline(ThingStatusDetail detail, String reason) {
-        if (updatesTask != null && !updatesTask.isDone()) {
-            updatesTask.cancel(true);
+        if (getThing().getStatus() != ThingStatus.OFFLINE) {
+            updateStatus(ThingStatus.OFFLINE, detail, reason);
         }
-
-        shouldRunUpdates = false;
-        updateStatus(ThingStatus.OFFLINE, detail, reason);
-        scheduleCheckCommunication(15);
     }
 
-    @Override
-    public void dispose() {
+    private synchronized void startUpdatesTask() {
+        if (!httpClient.isStarted()) {
+            try {
+                httpClient.start();
+            } catch (Exception e) {
+                log.error("Could not stop HttpClient", e);
+            }
+        }
+        updatesTask = scheduler.scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                updateData();
+            }
+        }, 0, config.refresh.intValue(), TimeUnit.SECONDS);
+    }
+
+    private void stopUpdateTasks() {
         if (refreshJob != null) {
             refreshJob.cancel(true);
         }
         if (updatesTask != null) {
             updatesTask.cancel(true);
         }
-    }
-
-    private void startUpdatesTask() {
-        Runnable runnable = new Runnable() {
-            @Override
-            public void run() {
-                updateSensorData();
-                updateInfoData();
-                if (shouldRunUpdates) {
-                    startUpdatesTask();
-                }
+        httpClient.getAuthenticationStore().clearAuthentications();
+        httpClient.getAuthenticationStore().clearAuthenticationResults();
+        if (httpClient.isStarted()) {
+            try {
+                httpClient.stop();
+            } catch (Exception e) {
+                log.error("Could not stop HttpClient", e);
             }
-        };
-
-        updatesTask = scheduler.schedule(runnable, refresh.intValue(), TimeUnit.SECONDS);
+        }
     }
 
     private State getTemperature() {
-
         for (VenstarSensor sensor : sensorData) {
             String name = sensor.getName();
             if (name.equalsIgnoreCase("Thermostat")) {
@@ -248,7 +210,6 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     }
 
     private State getHumidity() {
-
         for (VenstarSensor sensor : sensorData) {
             String name = sensor.getName();
             if (name.equalsIgnoreCase("Thermostat")) {
@@ -333,7 +294,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         }
     }
 
-    private void updateSensorData() {
+    private void updateData() {
         try {
             String response = getData("/query/sensors");
             VenstarSensorData res = new Gson().fromJson(response, VenstarSensorData.class);
@@ -341,44 +302,46 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_TEMPERATURE), getTemperature());
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_EXTERNAL_TEMPERATURE), getOutdoorTemperature());
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_HUMIDITY), getHumidity());
-        } catch (VenstarCommunicationException | JsonSyntaxException e) {
-            log.debug("Unable to fetch info data", e);
-            goOffline(ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
-        } catch (VenstarAuthenticationException e) {
-            goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Authorization Failed");
-        }
-    }
 
-    private boolean updateInfoData() {
-        try {
-            String response = getData("/query/info");
+            response = getData("/query/info");
             infoData = new Gson().fromJson(response, VenstarInfoData.class);
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_HEATING_SETPOINT), getHeatingSetpoint());
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_COOLING_SETPOINT), getCoolingSetpoint());
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_STATE), getSystemState());
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_MODE), getSystemMode());
+
+            goOnline();
         } catch (VenstarCommunicationException | JsonSyntaxException e) {
             log.debug("Unable to fetch info data", e);
             goOffline(ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
         } catch (VenstarAuthenticationException e) {
             goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Authorization Failed");
         }
-        return false;
     }
 
     private String getData(String path) throws VenstarAuthenticationException, VenstarCommunicationException {
-        Request request = httpClient.newRequest(config.getUrl() + path).timeout(TIMEOUT, TimeUnit.SECONDS);
-        return sendRequest(request);
+        try {
+            URL getURL = new URL(baseURL, path);
+            Request request = httpClient.newRequest(getURL.toURI()).timeout(TIMEOUT, TimeUnit.SECONDS);
+            return sendRequest(request);
+        } catch (MalformedURLException | URISyntaxException e) {
+            throw new VenstarCommunicationException(e);
+        }
     }
 
     private String postData(String path, Map<String, String> params)
             throws VenstarAuthenticationException, VenstarCommunicationException {
-        Request request = httpClient.newRequest(config.getUrl() + path).timeout(TIMEOUT, TimeUnit.SECONDS)
-                .method(HttpMethod.POST);
-        params.forEach((k, v) -> {
-            request.param(k, v);
-        });
-        return sendRequest(request);
+        try {
+            URL postURL = new URL(baseURL, path);
+            Request request = httpClient.newRequest(postURL.toURI()).timeout(TIMEOUT, TimeUnit.SECONDS)
+                    .method(HttpMethod.POST);
+            params.forEach((k, v) -> {
+                request.param(k, v);
+            });
+            return sendRequest(request);
+        } catch (MalformedURLException | URISyntaxException e) {
+            throw new VenstarCommunicationException(e);
+        }
     }
 
     private String sendRequest(Request request) throws VenstarAuthenticationException, VenstarCommunicationException {
@@ -399,28 +362,6 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         } catch (InterruptedException | TimeoutException | ExecutionException e) {
             throw new VenstarCommunicationException(e);
 
-        }
-    }
-
-    private void startHttpClient() {
-        if (!httpClient.isStarted()) {
-            try {
-                httpClient.start();
-            } catch (Exception e) {
-                log.error("Could not stop HttpClient", e);
-            }
-        }
-    }
-
-    private void stopHttpClient() {
-        httpClient.getAuthenticationStore().clearAuthentications();
-        httpClient.getAuthenticationStore().clearAuthenticationResults();
-        if (httpClient.isStarted()) {
-            try {
-                httpClient.stop();
-            } catch (Exception e) {
-                log.error("Could not stop HttpClient", e);
-            }
         }
     }
 
