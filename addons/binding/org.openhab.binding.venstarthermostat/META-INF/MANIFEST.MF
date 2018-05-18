@@ -5,24 +5,11 @@ Bundle-SymbolicName: org.openhab.binding.venstarthermostat;singleton:=true
 Bundle-Vendor: openHAB
 Bundle-Version: 2.3.0.qualifier
 Bundle-RequiredExecutionEnvironment: JavaSE-1.8
-Bundle-ClassPath: ., lib/httpclient-4.3.4.jar, lib/httpcore-4.3.3.jar, lib/commons-logging-1.2.jar
+Bundle-ClassPath: ., lib/jetty-client-9.4.10.v20180503.jar, lib/jetty-util-9.4.10.v20180503.jar, lib/jetty-http-9.4.10.v20180503.jar, lib/jetty-io-9.4.10.v20180503.jar
 Import-Package: 
  com.google.common.collect,
  com.google.gson,
  javax.ws.rs.core,
- org.apache.commons.codec.binary,
- org.apache.commons.io,
- org.apache.commons.lang,
- org.apache.commons.lang.math,
- org.apache.commons.net.util,
- org.apache.log4j,
- org.eclipse.jetty.client,
- org.eclipse.jetty.client.api,
- org.eclipse.jetty.client.util,
- org.eclipse.jetty.http,
- org.eclipse.jetty.util,
- org.eclipse.jetty.util.component,
- org.eclipse.jetty.util.ssl,
  org.eclipse.smarthome.config.core,
  org.eclipse.smarthome.config.core.status,
  org.eclipse.smarthome.config.discovery,
