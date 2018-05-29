@@ -29,7 +29,6 @@ import org.eclipse.jetty.client.api.Request;
 import org.eclipse.jetty.client.util.DigestAuthentication;
 import org.eclipse.jetty.http.HttpMethod;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
-import org.eclipse.smarthome.config.core.Configuration;
 import org.eclipse.smarthome.config.core.status.ConfigStatusMessage;
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.thing.ChannelUID;
@@ -79,7 +78,6 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     @Override
     public Collection<ConfigStatusMessage> getConfigStatus() {
-        log.warn("getConfigStatus called.");
         Collection<ConfigStatusMessage> status = new ArrayList<>();
         VenstarThermostatConfiguration config = getConfigAs(VenstarThermostatConfiguration.class);
         if (config.getUsername() == null || config.getUsername().isEmpty()) {
@@ -100,7 +98,6 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             status.add(ConfigStatusMessage.Builder.error(CONFIG_REFRESH).withMessageKeySuffix(REFRESH_INVALID)
                     .withArguments(CONFIG_REFRESH).build());
         }
-        log.debug("getConfigStatus returning {}", status);
         return status;
     }
 
@@ -132,24 +129,15 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     @Override
     public void initialize() {
-        config = getConfigAs(VenstarThermostatConfiguration.class);
-        stopUpdateTasks();
-        try {
-            baseURL = new URL(config.getUrl());
-            httpClient.getAuthenticationStore().addAuthentication(new DigestAuthentication(baseURL.toURI(),
-                    "thermostat", config.getUsername(), config.getPassword()));
-            startUpdatesTask();
-        } catch (MalformedURLException | URISyntaxException e) {
-            log.error("Invalid url " + config.url, e);
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
-        }
+        connect();
     }
 
     public void updateUrl(String url) {
-        Configuration configuration = editConfiguration();
-        configuration.put(VenstarThermostatBindingConstants.PROPERTY_URL, url);
-        updateConfiguration(configuration);
+        Map<String, String> props = editProperties();
+        props.put(VenstarThermostatBindingConstants.PROPERTY_URL, url);
+        updateProperties(props);
         thingUpdated(getThing());
+        connect();
     }
 
     protected void goOnline() {
@@ -161,6 +149,21 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     protected void goOffline(ThingStatusDetail detail, String reason) {
         if (getThing().getStatus() != ThingStatus.OFFLINE) {
             updateStatus(ThingStatus.OFFLINE, detail, reason);
+        }
+    }
+
+    private void connect() {
+        config = getConfigAs(VenstarThermostatConfiguration.class);
+        String url = getThing().getProperties().get(PROPERTY_URL);
+        stopUpdateTasks();
+        try {
+            baseURL = new URL(url);
+            httpClient.getAuthenticationStore().addAuthentication(new DigestAuthentication(baseURL.toURI(),
+                    "thermostat", config.getUsername(), config.getPassword()));
+            startUpdatesTask();
+        } catch (MalformedURLException | URISyntaxException e) {
+            log.error("Invalid url " + url, e);
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
         }
     }
 

@@ -27,7 +27,6 @@ import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingUID;
 import org.openhab.binding.venstarthermostat.VenstarThermostatBindingConstants;
 import org.openhab.binding.venstarthermostat.handler.VenstarThermostatHandler;
-import org.openhab.binding.venstarthermostat.internal.VenstarThermostatConfiguration;
 import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,6 +67,11 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
     protected void startScan() {
         log.info("Starting Interactive Scan");
         doRunRun();
+    }
+
+    @Override
+    public void setDiscoveryServiceCallback(DiscoveryServiceCallback discoveryServiceCallback) {
+        this.discoveryServiceCallback = discoveryServiceCallback;
     }
 
     protected synchronized void doRunRun() {
@@ -181,7 +185,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
     protected void parseResponse(String response) {
         DiscoveryResult result;
 
-        String label = null;
+        String name = null;
         String url = null;
         String uuid = null;
 
@@ -203,7 +207,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
                     Matcher m = USN_PATTERN.matcher(value);
                     if (m.find()) {
                         uuid = m.group(1);
-                        label = m.group(2);
+                        name = m.group(2);
                     }
                     break;
                 default:
@@ -212,50 +216,47 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
         }
         scanner.close();
 
-        log.trace("Found thermostat, label: {} uuid: {} url: {}", label, uuid, url);
+        log.trace("Found thermostat, name: {} uuid: {} url: {}", name, uuid, url);
 
-        if (label == null || uuid == null || url == null) {
+        if (name == null || uuid == null || url == null) {
             log.trace("Bad Format from thermostat");
             return;
         }
 
-        ThingUID thingUid = new ThingUID(VenstarThermostatBindingConstants.THING_TYPE_COLOR_TOUCH,
-                uuid.replace(":", "").toLowerCase());
+        uuid = uuid.replace(":", "").toLowerCase();
+
+        ThingUID thingUid = new ThingUID(VenstarThermostatBindingConstants.THING_TYPE_COLOR_TOUCH, uuid);
 
         log.debug("Got discovered device.");
-        if (getDiscoveryServiceCallback() != null) {
-            log.debug("Looking to see if this thing exists already.");
-            Thing thing = getDiscoveryServiceCallback().getExistingThing(thingUid);
-            if (thing != null) {
-                log.debug("Already have thing with ID=<" + thingUid + ">");
-                String thingUrl = thing.getConfiguration().as(VenstarThermostatConfiguration.class).getUrl();
-                log.debug("ThingURL=<" + thingUrl + ">, discoveredUrl=<" + url + ">");
-                if (thingUrl == null || !thingUrl.equals(url)) {
-                    ((VenstarThermostatHandler) thing.getHandler()).updateUrl(url);
-                    thing.getHandler().thingUpdated(thing);
-                    log.info("Updated url for existing Thermostat => " + url);
-                }
-                return;
-            } else {
-                log.debug("Nope. This should trigger a new inbox entry.");
+
+        log.debug("Looking to see if this thing exists already.");
+        Thing thing = getExsitingThing(thingUid);
+        if (thing != null) {
+            log.debug("Already have thing with ID=<" + thingUid + ">");
+            String thingUrl = thing.getProperties().get(VenstarThermostatBindingConstants.PROPERTY_URL);
+            log.debug("ThingURL=<" + thingUrl + ">, discoveredUrl=<" + url + ">");
+            if (thingUrl == null || !thingUrl.equals(url)) {
+                ((VenstarThermostatHandler) thing.getHandler()).updateUrl(url);
+                thing.getHandler().thingUpdated(thing);
+                log.info("Updated url for existing Thermostat => " + url);
             }
+            return;
         } else {
-            log.warn("DiscoveryServiceCallback not set. This shouldn't happen!");
+            log.debug("Nope. This should trigger a new inbox entry.");
         }
 
+        String label = String.format("Venstar Thermostat (%s)", name);
         result = DiscoveryResultBuilder.create(thingUid).withLabel(label).withRepresentationProperty(uuid)
                 .withProperty(VenstarThermostatBindingConstants.PROPERTY_UUID, uuid)
                 .withProperty(VenstarThermostatBindingConstants.PROPERTY_URL, url).build();
-        log.debug("New venstar thermostat discovered with ID=<" + uuid.replace(":", "") + ">.");
+        log.debug("New venstar thermostat discovered with ID=<" + uuid + ">.");
         this.thingDiscovered(result);
     }
 
-    @Override
-    public void setDiscoveryServiceCallback(DiscoveryServiceCallback discoveryServiceCallback) {
-        this.discoveryServiceCallback = discoveryServiceCallback;
-    }
-
-    public DiscoveryServiceCallback getDiscoveryServiceCallback() {
-        return discoveryServiceCallback;
+    public Thing getExsitingThing(ThingUID thingUid) {
+        if (discoveryServiceCallback != null) {
+            return discoveryServiceCallback.getExistingThing(thingUid);
+        }
+        return null;
     }
 }
