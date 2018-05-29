@@ -175,11 +175,8 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
                 log.error("Could not stop HttpClient", e);
             }
         }
-        updatesTask = scheduler.scheduleAtFixedRate(new Runnable() {
-            @Override
-            public void run() {
-                updateData();
-            }
+        updatesTask = scheduler.scheduleAtFixedRate(() -> {
+            updateData();
         }, 0, config.refresh.intValue(), TimeUnit.SECONDS);
     }
 
