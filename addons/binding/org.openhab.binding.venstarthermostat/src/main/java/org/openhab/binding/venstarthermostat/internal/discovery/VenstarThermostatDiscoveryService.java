@@ -229,7 +229,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
 
         log.debug("Got discovered device.");
 
-        Thing thing = getExsitingThing(thingUid);
+        Thing thing = getExistingThing(thingUid);
         if (thing != null) {
             log.debug("Already have thing with ID=<{}>", thingUid);
             String thingUrl = thing.getProperties().get(VenstarThermostatBindingConstants.PROPERTY_URL);
@@ -252,7 +252,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
         this.thingDiscovered(result);
     }
 
-    public Thing getExsitingThing(ThingUID thingUid) {
+    public Thing getExistingThing(ThingUID thingUid) {
         if (discoveryServiceCallback != null) {
             return discoveryServiceCallback.getExistingThing(thingUid);
         }
