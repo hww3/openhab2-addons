@@ -12,6 +12,8 @@ import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.Enumeration;
 import java.util.Scanner;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,18 +33,35 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Component(service = DiscoveryService.class, immediate = true, configurationPid = "binding.venstarthermostat")
-public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService
-        implements ExtendedDiscoveryService {
+public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService implements ExtendedDiscoveryService {
     private final Logger log = LoggerFactory.getLogger(VenstarThermostatDiscoveryService.class);
     private static final String COLOR_TOUCH_DISCOVERY_MESSAGE = "M-SEARCH * HTTP/1.1\r\n"
             + "Host: 239.255.255.250:1900\r\n" + "Man: ssdp:discover\r\n" + "ST: colortouch:ecp\r\n" + "\r\n";
     private static final Pattern USN_PATTERN = Pattern
             .compile("^colortouch:ecp((?::[0-9a-fA-F]{2}){6}):name:(.+)(?::type:(\\w+))");
     private static final String SSDP_MATCH = "colortouch:ecp";
-    protected DiscoveryServiceCallback discoveryServiceCallback;
+    private static final int BACKGROUND_SCAN_INTERVAL = 300; // seconds
+    private DiscoveryServiceCallback discoveryServiceCallback;
+    private ScheduledFuture<?> scheduledFuture;
 
     public VenstarThermostatDiscoveryService() {
         super(VenstarThermostatBindingConstants.SUPPORTED_THING_TYPES, 30, true);
+    }
+
+    @Override
+    protected void startBackgroundDiscovery() {
+        log.info("Starting Background Scan");
+        stopBackgroundDiscovery();
+        scheduledFuture = scheduler.scheduleAtFixedRate(() -> {
+            doRunRun();
+        }, 0, BACKGROUND_SCAN_INTERVAL, TimeUnit.SECONDS);
+    }
+
+    @Override
+    protected void stopBackgroundDiscovery() {
+        if (scheduledFuture != null && !scheduledFuture.isCancelled()) {
+            scheduledFuture.cancel(true);
+        }
     }
 
     @Override
@@ -51,7 +70,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService
         doRunRun();
     }
 
-    protected void doRunRun() {
+    protected synchronized void doRunRun() {
         log.debug("Sending SSDP discover.");
         for (int i = 0; i < 5; i++) {
             try {
@@ -149,7 +168,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService
                 socket.receive(packet);
             } catch (Exception e) {
                 log.debug("Got exception while trying to receive UPnP packets: " + e.getMessage());
-                break;
+                return;
             }
             String response = new String(packet.getData());
             if (response.contains(SSDP_MATCH)) {
