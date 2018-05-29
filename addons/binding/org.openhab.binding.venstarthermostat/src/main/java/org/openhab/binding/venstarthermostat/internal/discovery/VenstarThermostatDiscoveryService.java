@@ -229,27 +229,26 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
 
         log.debug("Got discovered device.");
 
-        log.debug("Looking to see if this thing exists already.");
         Thing thing = getExsitingThing(thingUid);
         if (thing != null) {
-            log.debug("Already have thing with ID=<" + thingUid + ">");
+            log.debug("Already have thing with ID=<{}>", thingUid);
             String thingUrl = thing.getProperties().get(VenstarThermostatBindingConstants.PROPERTY_URL);
-            log.debug("ThingURL=<" + thingUrl + ">, discoveredUrl=<" + url + ">");
+            log.debug("ThingURL=<{}>, discoveredUrl=<{}>", thingUrl, url);
             if (thingUrl == null || !thingUrl.equals(url)) {
                 ((VenstarThermostatHandler) thing.getHandler()).updateUrl(url);
                 thing.getHandler().thingUpdated(thing);
-                log.info("Updated url for existing Thermostat => " + url);
+                log.info("Updated url for existing Thermostat => {}", url);
             }
             return;
         } else {
-            log.debug("Nope. This should trigger a new inbox entry.");
+            log.debug("New Device, adding to inbox");
         }
 
         String label = String.format("Venstar Thermostat (%s)", name);
         result = DiscoveryResultBuilder.create(thingUid).withLabel(label).withRepresentationProperty(uuid)
                 .withProperty(VenstarThermostatBindingConstants.PROPERTY_UUID, uuid)
                 .withProperty(VenstarThermostatBindingConstants.PROPERTY_URL, url).build();
-        log.debug("New venstar thermostat discovered with ID=<" + uuid + ">.");
+        log.debug("New venstar thermostat discovered with ID=<{}>", uuid);
         this.thingDiscovered(result);
     }
 
