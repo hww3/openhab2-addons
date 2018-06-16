@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.7"/>
 	<classpathentry exported="true" kind="con" path="org.eclipse.pde.core.requiredPlugins">
 		<accessrules>
 			<accessrule kind="accessible" pattern="org/apache/http/impl/io/**"/>
@@ -8,7 +7,10 @@
 		</accessrules>
 	</classpathentry>
 	<classpathentry kind="src" path="src/main/java"/>
-	<classpathentry kind="lib" path="lib/httpclient-4.3.4.jar"/>
-	<classpathentry kind="lib" path="lib/httpcore-4.3.3.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="lib/jetty-client-9.4.10.v20180503.jar"/>
+	<classpathentry kind="lib" path="lib/jetty-http-9.4.10.v20180503.jar"/>
+	<classpathentry kind="lib" path="lib/jetty-util-9.4.10.v20180503.jar"/>
+	<classpathentry kind="lib" path="lib/jetty-io-9.4.10.v20180503.jar"/>
 	<classpathentry kind="output" path="target/classes"/>
 </classpath>
