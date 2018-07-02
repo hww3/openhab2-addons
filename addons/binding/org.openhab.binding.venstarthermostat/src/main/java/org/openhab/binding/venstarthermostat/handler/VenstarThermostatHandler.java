@@ -19,7 +19,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -37,6 +36,7 @@ import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.thing.binding.ConfigStatusThingHandler;
 import org.eclipse.smarthome.core.types.Command;
+import org.eclipse.smarthome.core.types.RefreshType;
 import org.eclipse.smarthome.core.types.State;
 import org.eclipse.smarthome.core.types.UnDefType;
 import org.openhab.binding.venstarthermostat.VenstarThermostatBindingConstants;
@@ -62,7 +62,6 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     private static final int TIMEOUT = 30;
     private Logger log = LoggerFactory.getLogger(VenstarThermostatHandler.class);
-    ScheduledFuture<?> refreshJob;
     private List<VenstarSensor> sensorData = new ArrayList<>();
     private VenstarInfoData infoData = new VenstarInfoData();
     private Future<?> updatesTask;
@@ -103,21 +102,24 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
+        if (command instanceof RefreshType) {
+            return;
+        }
         if (!(command instanceof DecimalType)) {
-            log.warn("Invalid cooling setpoint command " + command);
+            log.warn("Unsupported command {}", command);
             return;
         }
         int value = ((DecimalType) command).intValue();
         if (channelUID.getId().equals(CHANNEL_HEATING_SETPOINT)) {
-            log.debug("Setting heating setpoint to {}", value);
+            log.info("Setting heating setpoint to {}", value);
             setHeatingSetpoint(value);
         }
         if (channelUID.getId().equals(CHANNEL_COOLING_SETPOINT)) {
-            log.debug("Setting cooling setpoint to {}", value);
+            log.info("Setting cooling setpoint to {}", value);
             setCoolingSetpoint(value);
         }
         if (channelUID.getId().equals(CHANNEL_SYSTEM_MODE)) {
-            log.debug("Setting system mode to  {}", value);
+            log.info("Setting system mode to  {}", value);
             setSystemMode(value);
         }
     }
@@ -125,6 +127,13 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     @Override
     public void dispose() {
         stopUpdateTasks();
+        if (httpClient.isStarted()) {
+            try {
+                httpClient.stop();
+            } catch (Exception e) {
+                log.error("Could not stop HttpClient", e);
+            }
+        }
     }
 
     @Override
@@ -153,48 +162,35 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     }
 
     private void connect() {
+        stopUpdateTasks();
         config = getConfigAs(VenstarThermostatConfiguration.class);
         String url = getThing().getProperties().get(PROPERTY_URL);
-        stopUpdateTasks();
         try {
             baseURL = new URL(url);
+            if (!httpClient.isStarted()) {
+                httpClient.start();
+            }
+            httpClient.getAuthenticationStore().clearAuthentications();
+            httpClient.getAuthenticationStore().clearAuthenticationResults();
             httpClient.getAuthenticationStore().addAuthentication(new DigestAuthentication(baseURL.toURI(),
                     "thermostat", config.getUsername(), config.getPassword()));
             startUpdatesTask();
-        } catch (MalformedURLException | URISyntaxException e) {
-            log.error("Invalid url " + url, e);
+        } catch (Exception e) {
+            log.error("Could not connect to URL  " + url, e);
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
         }
     }
 
     private synchronized void startUpdatesTask() {
-        if (!httpClient.isStarted()) {
-            try {
-                httpClient.start();
-            } catch (Exception e) {
-                log.error("Could not stop HttpClient", e);
-            }
-        }
+        stopUpdateTasks();
         updatesTask = scheduler.scheduleAtFixedRate(() -> {
             updateData();
         }, 0, config.refresh.intValue(), TimeUnit.SECONDS);
     }
 
     private void stopUpdateTasks() {
-        if (refreshJob != null) {
-            refreshJob.cancel(true);
-        }
         if (updatesTask != null) {
             updatesTask.cancel(true);
-        }
-        httpClient.getAuthenticationStore().clearAuthentications();
-        httpClient.getAuthenticationStore().clearAuthenticationResults();
-        if (httpClient.isStarted()) {
-            try {
-                httpClient.stop();
-            } catch (Exception e) {
-                log.error("Could not stop HttpClient", e);
-            }
         }
     }
 
@@ -269,7 +265,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     private void updateThermostat(int heat, int cool, int mode) {
         Map<String, String> params = new HashMap<>();
-        log.debug("Updating thermostat {}  heat:{} cool {} mode: {}", getThing().getLabel(), heat, cool, mode);
+        log.info("Updating thermostat {}  heat:{} cool {} mode: {}", getThing().getLabel(), heat, cool, mode);
         if (heat > 0) {
             params.put("heattemp", String.valueOf(heat));
         }
@@ -282,6 +278,8 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             VenstarResponse res = new Gson().fromJson(result, VenstarResponse.class);
             if (res.isSuccess()) {
                 log.debug("Updated thermostat");
+                // update our local copy until the next refresh occurs
+                infoData = new VenstarInfoData(cool, heat, infoData.getState(), mode);
             } else {
                 log.warn("Failed to update thermostat: {}", res.getReason());
                 goOffline(ThingStatusDetail.COMMUNICATION_ERROR, "Thermostat update failed: " + res.getReason());
@@ -348,6 +346,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         log.trace("sendRequest: requesting {}", request.getURI());
         try {
             ContentResponse response = request.send();
+            log.trace("Response code {}", response.getStatus());
             if (response.getStatus() == 401) {
                 throw new VenstarAuthenticationException();
             }
