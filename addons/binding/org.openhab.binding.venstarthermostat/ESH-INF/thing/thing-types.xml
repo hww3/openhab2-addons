@@ -72,45 +72,45 @@
     </channel-type>
 
     <channel-type id="heatingSetpoint">
-        <item-type>Number</item-type>
+        <item-type>Number:Temperature</item-type>
         <label>Heating Setpoint</label>
         <description>Heating Setpoint</description>
         <category>Temperature</category>
-        <state readOnly="false" pattern="%.1f °F" min="40" max="80" step="1.0"/>
+        <state readOnly="false" pattern="%.1f %unit%" min="40" max="80" step="1.0"/>
     </channel-type>
 
     <channel-type id="coolingSetpoint">
-        <item-type>Number</item-type>
+        <item-type>Number:Temperature</item-type>
         <label>Cooling Setpoint</label>
         <description>Cooling Setpoint</description>
         <category>Temperature</category>
-        <state readOnly="false" pattern="%.1f °F" min="60" max="95" step="1.0"/>
+        <state readOnly="false" pattern="%.1f %unit%" min="60" max="95" step="1.0"/>
     </channel-type>
 
     <channel-type id="temperature">
-        <item-type>Number</item-type>
+        <item-type>Number:Temperature</item-type>
         <label>Temperature</label>
         <description>Temperature</description>
         <category>Temperature</category>
-        <state readOnly="true" pattern="%.1f °F">
+        <state readOnly="true" pattern="%.1f %unit%">
         </state>
     </channel-type>
 
     <channel-type id="outdoorTemperature">
-        <item-type>Number</item-type>
+        <item-type>Number:Temperature</item-type>
         <label>Outdoor Temperature</label>
         <description>Outdoor Temperature</description>
         <category>Temperature</category>
-        <state readOnly="true" pattern="%.1f °F">
+        <state readOnly="true" pattern="%.1f %unit%">
         </state>
     </channel-type>
 
     <channel-type id="humidity">
-        <item-type>Number</item-type>
+        <item-type>Number:Dimensionless</item-type>
         <label>Humidity</label>
         <description>Indoor Humidity</description>
         <category>Humidity</category>
-        <state readOnly="true" pattern="%.1f %%"/>
+        <state readOnly="true" min="0" max="100" pattern="%d %unit%" />
     </channel-type>
     
 </thing:thing-descriptions>

@@ -7,8 +7,11 @@
  */
 package org.openhab.binding.venstarthermostat.handler;
 
+import static org.eclipse.smarthome.core.library.unit.SIUnits.CELSIUS;
 import static org.openhab.binding.venstarthermostat.VenstarThermostatBindingConstants.*;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -19,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -30,13 +34,16 @@ import org.eclipse.jetty.http.HttpMethod;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.smarthome.config.core.status.ConfigStatusMessage;
 import org.eclipse.smarthome.core.library.types.DecimalType;
+import org.eclipse.smarthome.core.library.types.QuantityType;
+import org.eclipse.smarthome.core.library.unit.ImperialUnits;
+import org.eclipse.smarthome.core.library.unit.SIUnits;
+import org.eclipse.smarthome.core.library.unit.SmartHomeUnits;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.thing.binding.ConfigStatusThingHandler;
 import org.eclipse.smarthome.core.types.Command;
-import org.eclipse.smarthome.core.types.RefreshType;
 import org.eclipse.smarthome.core.types.State;
 import org.eclipse.smarthome.core.types.UnDefType;
 import org.openhab.binding.venstarthermostat.VenstarThermostatBindingConstants;
@@ -51,6 +58,11 @@ import org.slf4j.LoggerFactory;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 
+import javax.measure.Quantity;
+import javax.measure.Unit;
+import javax.measure.quantity.Dimensionless;
+import javax.measure.quantity.Temperature;
+
 /**
  * The {@link VenstarThermostatHandler} is responsible for handling commands, which are
  * sent to one of the channels.
@@ -62,12 +74,16 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     private static final int TIMEOUT = 30;
     private Logger log = LoggerFactory.getLogger(VenstarThermostatHandler.class);
+    ScheduledFuture<?> refreshJob;
     private List<VenstarSensor> sensorData = new ArrayList<>();
     private VenstarInfoData infoData = new VenstarInfoData();
     private Future<?> updatesTask;
     private VenstarThermostatConfiguration config;
     private HttpClient httpClient;
     private URL baseURL;
+
+    // Venstar Thermostats are most commonly installed in the US, so start with a reasonable default.
+    private Unit<Temperature> unitSystem = ImperialUnits.FAHRENHEIT;
 
     public VenstarThermostatHandler(Thing thing) {
         super(thing);
@@ -102,24 +118,31 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
-        if (command instanceof RefreshType) {
+        if (!(command instanceof DecimalType || command instanceof QuantityType)) {
+            log.warn("Invalid thermostat command " + command);
             return;
         }
-        if (!(command instanceof DecimalType)) {
-            log.warn("Unsupported command {}", command);
-            return;
-        }
-        int value = ((DecimalType) command).intValue();
+
+        // TODO Does the thermostat support setting temperatures using fractional degrees?
+
         if (channelUID.getId().equals(CHANNEL_HEATING_SETPOINT)) {
-            log.info("Setting heating setpoint to {}", value);
+            QuantityType<Temperature> quantity = commandToQuantityType(command, unitSystem);
+            int value = quantityToRoundedTemperature(quantity, unitSystem).intValue();
+
+            log.debug("Setting heating setpoint to {}", value);
             setHeatingSetpoint(value);
         }
-        if (channelUID.getId().equals(CHANNEL_COOLING_SETPOINT)) {
-            log.info("Setting cooling setpoint to {}", value);
+        else if (channelUID.getId().equals(CHANNEL_COOLING_SETPOINT)) {
+            QuantityType<Temperature> quantity = commandToQuantityType(command, unitSystem);
+            int value = quantityToRoundedTemperature(quantity, unitSystem).intValue();
+
+            log.debug("Setting cooling setpoint to {}", value);
             setCoolingSetpoint(value);
         }
-        if (channelUID.getId().equals(CHANNEL_SYSTEM_MODE)) {
-            log.info("Setting system mode to  {}", value);
+        else if (channelUID.getId().equals(CHANNEL_SYSTEM_MODE)) {
+            int value = commandToDecimalType(command).intValue();
+
+            log.debug("Setting system mode to  {}", value);
             setSystemMode(value);
         }
     }
@@ -127,13 +150,6 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     @Override
     public void dispose() {
         stopUpdateTasks();
-        if (httpClient.isStarted()) {
-            try {
-                httpClient.stop();
-            } catch (Exception e) {
-                log.error("Could not stop HttpClient", e);
-            }
-        }
     }
 
     @Override
@@ -162,35 +178,48 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     }
 
     private void connect() {
-        stopUpdateTasks();
         config = getConfigAs(VenstarThermostatConfiguration.class);
         String url = getThing().getProperties().get(PROPERTY_URL);
+        stopUpdateTasks();
         try {
             baseURL = new URL(url);
-            if (!httpClient.isStarted()) {
-                httpClient.start();
-            }
-            httpClient.getAuthenticationStore().clearAuthentications();
-            httpClient.getAuthenticationStore().clearAuthenticationResults();
             httpClient.getAuthenticationStore().addAuthentication(new DigestAuthentication(baseURL.toURI(),
                     "thermostat", config.getUsername(), config.getPassword()));
             startUpdatesTask();
-        } catch (Exception e) {
-            log.error("Could not connect to URL  " + url, e);
+        } catch (MalformedURLException | URISyntaxException e) {
+            log.error("Invalid url " + url, e);
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
         }
     }
 
     private synchronized void startUpdatesTask() {
-        stopUpdateTasks();
+        if (!httpClient.isStarted()) {
+            try {
+                httpClient.start();
+            } catch (Exception e) {
+                log.error("Could not stop HttpClient", e);
+            }
+        }
         updatesTask = scheduler.scheduleAtFixedRate(() -> {
             updateData();
         }, 0, config.refresh.intValue(), TimeUnit.SECONDS);
     }
 
     private void stopUpdateTasks() {
+        if (refreshJob != null) {
+            refreshJob.cancel(true);
+        }
         if (updatesTask != null) {
             updatesTask.cancel(true);
+        }
+        httpClient.getAuthenticationStore().clearAuthentications();
+        httpClient.getAuthenticationStore().clearAuthenticationResults();
+        if (httpClient.isStarted()) {
+            try {
+                httpClient.stop();
+            } catch (Exception e) {
+                log.error("Could not stop HttpClient", e);
+            }
         }
     }
 
@@ -198,7 +227,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         for (VenstarSensor sensor : sensorData) {
             String name = sensor.getName();
             if (name.equalsIgnoreCase("Thermostat")) {
-                return new DecimalType(sensor.getTemp());
+                return new QuantityType<Temperature>(sensor.getTemp(), unitSystem);
             }
         }
 
@@ -209,7 +238,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         for (VenstarSensor sensor : sensorData) {
             String name = sensor.getName();
             if (name.equalsIgnoreCase("Thermostat")) {
-                return new DecimalType(sensor.getHum());
+                return new QuantityType<Dimensionless>(sensor.getHum(), SmartHomeUnits.PERCENT);
             }
         }
 
@@ -220,52 +249,52 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         for (VenstarSensor sensor : sensorData) {
             String name = sensor.getName();
             if (name.equalsIgnoreCase("Outdoor")) {
-                return new DecimalType(sensor.getTemp());
+                return new QuantityType<Temperature>(sensor.getTemp(), unitSystem);
             }
         }
         return UnDefType.UNDEF;
     }
 
     private void setCoolingSetpoint(int cool) {
-        int heat = ((DecimalType) getHeatingSetpoint()).intValue();
-        int mode = ((DecimalType) getSystemMode()).intValue();
+        int heat = getHeatingSetpoint().intValue();
+        int mode = getSystemMode().intValue();
 
         updateThermostat(heat, cool, mode);
     }
 
     private void setSystemMode(int mode) {
-        int cool = ((DecimalType) getCoolingSetpoint()).intValue();
-        int heat = ((DecimalType) getHeatingSetpoint()).intValue();
+        int cool = getCoolingSetpoint().intValue();
+        int heat = getHeatingSetpoint().intValue();
 
         updateThermostat(heat, cool, mode);
     }
 
     private void setHeatingSetpoint(int heat) {
-        int cool = ((DecimalType) getCoolingSetpoint()).intValue();
-        int mode = ((DecimalType) getSystemMode()).intValue();
+        int cool = getCoolingSetpoint().intValue();
+        int mode = getSystemMode().intValue();
 
         updateThermostat(heat, cool, mode);
     }
 
-    private State getCoolingSetpoint() {
-        return new DecimalType(infoData.getCooltemp());
+    private QuantityType<Temperature> getCoolingSetpoint() {
+        return new QuantityType<Temperature>(infoData.getCooltemp(), unitSystem);
     }
 
-    private State getHeatingSetpoint() {
-        return new DecimalType(infoData.getHeattemp());
+    private QuantityType<Temperature> getHeatingSetpoint() {
+        return new QuantityType<Temperature>(infoData.getHeattemp(), unitSystem);
     }
 
-    private State getSystemState() {
+    private DecimalType getSystemState() {
         return new DecimalType(infoData.getState());
     }
 
-    private State getSystemMode() {
+    private DecimalType getSystemMode() {
         return new DecimalType(infoData.getMode());
     }
 
     private void updateThermostat(int heat, int cool, int mode) {
         Map<String, String> params = new HashMap<>();
-        log.info("Updating thermostat {}  heat:{} cool {} mode: {}", getThing().getLabel(), heat, cool, mode);
+        log.debug("Updating thermostat {}  heat:{} cool {} mode: {}", getThing().getLabel(), heat, cool, mode);
         if (heat > 0) {
             params.put("heattemp", String.valueOf(heat));
         }
@@ -278,8 +307,6 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             VenstarResponse res = new Gson().fromJson(result, VenstarResponse.class);
             if (res.isSuccess()) {
                 log.debug("Updated thermostat");
-                // update our local copy until the next refresh occurs
-                infoData = new VenstarInfoData(cool, heat, infoData.getState(), mode);
             } else {
                 log.warn("Failed to update thermostat: {}", res.getReason());
                 goOffline(ThingStatusDetail.COMMUNICATION_ERROR, "Thermostat update failed: " + res.getReason());
@@ -303,6 +330,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
             response = getData("/query/info");
             infoData = new Gson().fromJson(response, VenstarInfoData.class);
+            updateUnits(infoData);
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_HEATING_SETPOINT), getHeatingSetpoint());
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_COOLING_SETPOINT), getCoolingSetpoint());
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_STATE), getSystemState());
@@ -315,6 +343,15 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         } catch (VenstarAuthenticationException e) {
             goOffline(ThingStatusDetail.CONFIGURATION_ERROR, "Authorization Failed");
         }
+    }
+
+    private void updateUnits(VenstarInfoData infoData) {
+        int tempunits = infoData.getTempunits();
+        if(tempunits == 0)
+            unitSystem = ImperialUnits.FAHRENHEIT;
+        else if(tempunits == 1)
+            unitSystem = SIUnits.CELSIUS;
+        else throw new RuntimeException("Thermostat returned unknown unit system type: " + tempunits);
     }
 
     private String getData(String path) throws VenstarAuthenticationException, VenstarCommunicationException {
@@ -346,7 +383,6 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         log.trace("sendRequest: requesting {}", request.getURI());
         try {
             ContentResponse response = request.send();
-            log.trace("Response code {}", response.getStatus());
             if (response.getStatus() == 401) {
                 throw new VenstarAuthenticationException();
             }
@@ -363,6 +399,34 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
         }
     }
+
+    protected <U extends Quantity<U>> QuantityType<U> commandToQuantityType(Command command, Unit<U> defaultUnit) {
+        if (command instanceof QuantityType) {
+            return (QuantityType<U>) command;
+        }
+        return new QuantityType<U>(new BigDecimal(command.toString()), defaultUnit);
+    }
+
+    protected DecimalType commandToDecimalType(Command command) {
+        if (command instanceof DecimalType) {
+            return (DecimalType) command;
+        }
+        return new DecimalType(new BigDecimal(command.toString()));
+    }
+
+    private BigDecimal quantityToRoundedTemperature(QuantityType<Temperature> quantity,
+                                                              Unit<Temperature> unit) throws IllegalArgumentException {
+        QuantityType<Temperature> temparatureQuantity = quantity.toUnit(unit);
+        if (temparatureQuantity == null) {
+            return null;
+        }
+
+        BigDecimal value = temparatureQuantity.toBigDecimal();
+        BigDecimal increment = CELSIUS == unit ? new BigDecimal("0.5") : new BigDecimal("1");
+        BigDecimal divisor = value.divide(increment, 0, RoundingMode.HALF_UP);
+        return divisor.multiply(increment);
+    }
+
 
     @SuppressWarnings("serial")
     private class VenstarAuthenticationException extends Exception {
