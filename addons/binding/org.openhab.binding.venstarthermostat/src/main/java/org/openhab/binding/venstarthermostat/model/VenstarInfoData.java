@@ -6,6 +6,7 @@ public class VenstarInfoData {
 
     int state;
     int mode;
+    int tempunits;
 
     public double getCooltemp() {
         return cooltemp;
@@ -39,4 +40,7 @@ public class VenstarInfoData {
         this.mode = mode;
     }
 
+    public int getTempunits() { return tempunits; }
+
+    public void setTempunits(int tempunits) { this.tempunits = tempunits; }
 }
