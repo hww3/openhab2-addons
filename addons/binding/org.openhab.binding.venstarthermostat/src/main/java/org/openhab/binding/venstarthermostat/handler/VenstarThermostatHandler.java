@@ -35,6 +35,7 @@ import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.smarthome.config.core.status.ConfigStatusMessage;
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.library.types.QuantityType;
+import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.library.unit.ImperialUnits;
 import org.eclipse.smarthome.core.library.unit.SIUnits;
 import org.eclipse.smarthome.core.library.unit.SmartHomeUnits;
@@ -44,6 +45,7 @@ import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.thing.binding.ConfigStatusThingHandler;
 import org.eclipse.smarthome.core.types.Command;
+import org.eclipse.smarthome.core.types.RefreshType;
 import org.eclipse.smarthome.core.types.State;
 import org.eclipse.smarthome.core.types.UnDefType;
 import org.openhab.binding.venstarthermostat.VenstarThermostatBindingConstants;
@@ -118,9 +120,13 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
+        if (command instanceof RefreshType) {
+           // TODO handle REFRESH commands
+           log.info("Refresh command requested for " + channelUID);
+           return;
+        } else if (command instanceof StringType && channelUID.getId().equals(CHANNEL_SYSTEM_MODE))
         if (!(command instanceof DecimalType || command instanceof QuantityType)) {
-            log.warn("Invalid thermostat command " + command);
-            return;
+            log.info("Setting system mode to " + command);
         }
 
         // TODO Does the thermostat support setting temperatures using fractional degrees?
@@ -257,7 +263,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     private void setCoolingSetpoint(int cool) {
         int heat = getHeatingSetpoint().intValue();
-        int mode = getSystemMode().intValue();
+        int mode = getSystemMode();
 
         updateThermostat(heat, cool, mode);
     }
@@ -271,7 +277,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     private void setHeatingSetpoint(int heat) {
         int cool = getCoolingSetpoint().intValue();
-        int mode = getSystemMode().intValue();
+        int mode = getSystemMode();
 
         updateThermostat(heat, cool, mode);
     }
@@ -284,12 +290,12 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         return new QuantityType<Temperature>(infoData.getHeattemp(), unitSystem);
     }
 
-    private DecimalType getSystemState() {
-        return new DecimalType(infoData.getState());
+    private int getSystemState() {
+        return infoData.getState();
     }
 
-    private DecimalType getSystemMode() {
-        return new DecimalType(infoData.getMode());
+    private int getSystemMode() {
+        return infoData.getMode();
     }
 
     private void updateThermostat(int heat, int cool, int mode) {
@@ -333,8 +339,8 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             updateUnits(infoData);
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_HEATING_SETPOINT), getHeatingSetpoint());
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_COOLING_SETPOINT), getCoolingSetpoint());
-            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_STATE), getSystemState());
-            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_MODE), getSystemMode());
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_STATE), new StringType("" + getSystemState()));
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_MODE), new StringType("" + getSystemMode()));
 
             goOnline();
         } catch (VenstarCommunicationException | JsonSyntaxException e) {
