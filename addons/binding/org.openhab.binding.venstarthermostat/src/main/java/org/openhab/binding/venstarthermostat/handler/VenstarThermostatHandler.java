@@ -118,18 +118,11 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
-        // if (!(command instanceof DecimalType)) {
-        // log.warn("Unsupported command {}", command);
-        // return;
-        if (command instanceof RefreshType) {
 
+        if (command instanceof RefreshType) {
             // TODO handle REFRESH commands
             log.info("Refresh command requested for " + channelUID);
             return;
-        } else if (command instanceof StringType && channelUID.getId().equals(CHANNEL_SYSTEM_MODE)) {
-            if (!(command instanceof DecimalType || command instanceof QuantityType)) {
-                log.info("Setting system mode to " + command);
-            }
         }
 
         // TODO Does the thermostat support setting temperatures using fractional degrees?
