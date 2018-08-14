@@ -8,19 +8,25 @@
  */
 package org.openhab.binding.avmfritz.handler;
 
+import static org.eclipse.smarthome.core.library.unit.SIUnits.CELSIUS;
 import static org.openhab.binding.avmfritz.BindingConstants.*;
 
 import java.math.BigDecimal;
+
+import javax.measure.quantity.Temperature;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.library.types.IncreaseDecreaseType;
 import org.eclipse.smarthome.core.library.types.OnOffType;
+import org.eclipse.smarthome.core.library.types.QuantityType;
 import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.thing.Bridge;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
+import org.eclipse.smarthome.core.thing.ThingStatus;
+import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.thing.binding.BridgeHandler;
 import org.eclipse.smarthome.core.types.Command;
@@ -59,22 +65,37 @@ public abstract class AVMFritzBaseThingHandler extends BaseThingHandler {
         super(thing);
     }
 
+    @Override
+    public void initialize() {
+        logger.debug("Initializing handler for {}", getClass().getName());
+        updateStatus(ThingStatus.UNKNOWN);
+    }
+
     /**
-     * Handle the commands for switchable outlets or heating thermostats.
+     * Called from {@link AVMFritzBaseBridgeHandler)} to update the thing status because updateStatus is protected.
+     *
+     * @param status Thing status
+     * @param statusDetail Thing status detail
+     * @param description Thing status description
      */
+    public void setStatusInfo(ThingStatus status, ThingStatusDetail statusDetail, @Nullable String description) {
+        updateStatus(status, statusDetail, description);
+    }
+
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
         String channelId = channelUID.getIdWithoutGroup();
         logger.debug("Handle command '{}' for channel {}", command, channelId);
         FritzAhaWebInterface fritzBox = getWebInterface();
         if (fritzBox == null) {
+            logger.debug("Cannot handle command '{}' because connection is missing", command);
             return;
         }
-        if (getThing().getConfiguration().get(THING_AIN) == null) {
+        String ain = getIdentifier();
+        if (ain == null) {
             logger.debug("Cannot handle command '{}' because AIN is missing", command);
             return;
         }
-        String ain = getThing().getConfiguration().get(THING_AIN).toString();
         switch (channelId) {
             case CHANNEL_MODE:
             case CHANNEL_LOCKED:
@@ -100,7 +121,13 @@ public abstract class AVMFritzBaseThingHandler extends BaseThingHandler {
                 break;
             case CHANNEL_SETTEMP:
                 if (command instanceof DecimalType) {
-                    BigDecimal temperature = new BigDecimal(command.toString());
+                    BigDecimal temperature = HeatingModel.normalizeCelsius(((DecimalType) command).toBigDecimal());
+                    state.getHkr().setTsoll(temperature);
+                    fritzBox.setSetTemp(ain, HeatingModel.fromCelsius(temperature));
+                    updateState(CHANNEL_RADIATOR_MODE, new StringType(state.getHkr().getRadiatorMode()));
+                } else if (command instanceof QuantityType) {
+                    BigDecimal temperature = HeatingModel
+                            .normalizeCelsius(((QuantityType<Temperature>) command).toUnit(CELSIUS).toBigDecimal());
                     state.getHkr().setTsoll(temperature);
                     fritzBox.setSetTemp(ain, HeatingModel.fromCelsius(temperature));
                     updateState(CHANNEL_RADIATOR_MODE, new StringType(state.getHkr().getRadiatorMode()));
@@ -178,6 +205,12 @@ public abstract class AVMFritzBaseThingHandler extends BaseThingHandler {
             }
         }
         return null;
+    }
+
+    @Nullable
+    public String getIdentifier() {
+        Object ain = getThing().getConfiguration().get(THING_AIN);
+        return ain != null ? ain.toString() : null;
     }
 
     @Nullable

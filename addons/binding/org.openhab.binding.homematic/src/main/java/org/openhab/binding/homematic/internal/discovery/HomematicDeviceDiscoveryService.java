@@ -171,7 +171,8 @@ public class HomematicDeviceDiscoveryService extends AbstractDiscoveryService {
         } catch (Exception ex) {
             logger.error("Error waiting for device discovery scan: {}", ex.getMessage(), ex);
         }
-        String gatewayId = bridgeHandler != null ? bridgeHandler.getGateway().getId() : "UNKNOWN";
+        String gatewayId = bridgeHandler != null && bridgeHandler.getGateway() != null
+                ? bridgeHandler.getGateway().getId() : "UNKNOWN";
         logger.debug("Finished Homematic device discovery scan on gateway '{}'", gatewayId);
     }
 
@@ -214,9 +215,12 @@ public class HomematicDeviceDiscoveryService extends AbstractDiscoveryService {
         ThingTypeUID typeUid = UidUtils.generateThingTypeUID(device);
         ThingUID thingUID = new ThingUID(typeUid, bridgeUID, device.getAddress());
         String label = device.getName() != null ? device.getName() : device.getAddress();
+        long timeToLive = bridgeHandler.getThing().getConfiguration().as(HomematicConfig.class).getDiscoveryTimeToLive();
 
         DiscoveryResult discoveryResult = DiscoveryResultBuilder.create(thingUID).withBridge(bridgeUID).withLabel(label)
-                .build();
+                .withProperty(Thing.PROPERTY_SERIAL_NUMBER, device.getAddress())
+                .withRepresentationProperty(Thing.PROPERTY_SERIAL_NUMBER)
+                .withTTL(timeToLive).build();
         thingDiscovered(discoveryResult);
     }
 

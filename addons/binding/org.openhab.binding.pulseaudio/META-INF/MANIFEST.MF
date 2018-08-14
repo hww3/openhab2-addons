@@ -6,7 +6,7 @@ Bundle-Name: Pulseaudio Binding
 Bundle-RequiredExecutionEnvironment: JavaSE-1.8
 Bundle-SymbolicName: org.openhab.binding.pulseaudio;singleton:=true
 Bundle-Vendor: openHAB
-Bundle-Version: 2.3.0.qualifier
+Bundle-Version: 2.4.0.qualifier
 Export-Package: 
  org.openhab.binding.pulseaudio,
  org.openhab.binding.pulseaudio.handler
@@ -29,5 +29,6 @@ Import-Package:
  org.openhab.binding.pulseaudio,
  org.openhab.binding.pulseaudio.handler,
  org.osgi.framework,
+ org.osgi.service.component,
  org.slf4j
 Service-Component: OSGI-INF/*.xml

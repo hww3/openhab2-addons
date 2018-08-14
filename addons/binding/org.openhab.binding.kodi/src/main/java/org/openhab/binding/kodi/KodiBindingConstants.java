@@ -21,7 +21,7 @@ import org.eclipse.smarthome.core.thing.ThingTypeUID;
  * @author Paul Frank - Initial contribution
  * @author Christoph Weitkamp - Added channels for opening PVR TV or Radio streams
  * @author Andreas Reinhardt & Christoph Weitkamp - Added channels for thumbnail and fanart
- *
+ * @author Christoph Weitkamp - Improvements for playing audio notifications
  */
 @NonNullByDefault
 public class KodiBindingConstants {
@@ -50,6 +50,7 @@ public class KodiBindingConstants {
     public static final String CHANNEL_PVR_OPEN_TV = "pvr-open-tv";
     public static final String CHANNEL_PVR_OPEN_RADIO = "pvr-open-radio";
     public static final String CHANNEL_SHOWNOTIFICATION = "shownotification";
+    public static final String CHANNEL_PLAYNOTIFICATION = "playnotification";
 
     public static final String CHANNEL_INPUT = "input";
     public static final String CHANNEL_INPUTTEXT = "inputtext";
@@ -65,6 +66,9 @@ public class KodiBindingConstants {
     public static final String CHANNEL_PVR_CHANNEL = "pvr-channel";
     public static final String CHANNEL_THUMBNAIL = "thumbnail";
     public static final String CHANNEL_FANART = "fanart";
+    public static final String CHANNEL_CURRENTTIME = "currenttime";
+    public static final String CHANNEL_CURRENTTIMEPERCENTAGE = "currenttimepercentage";
+    public static final String CHANNEL_DURATION = "duration";
 
     // Module Properties
     public static final String PROPERTY_VERSION = "version";

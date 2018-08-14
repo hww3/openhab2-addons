@@ -26,6 +26,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.StringUtils;
+import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.smarthome.core.common.ThreadPoolManager;
 import org.openhab.binding.homematic.internal.common.HomematicConfig;
 import org.openhab.binding.homematic.internal.communicator.client.BinRpcClient;
@@ -89,6 +90,7 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
     private Map<TransferMode, RpcServer> rpcServers = new HashMap<TransferMode, RpcServer>();
 
     protected HomematicConfig config;
+    protected HttpClient httpClient;
     private String id;
     private HomematicGatewayAdapter gatewayAdapter;
     private DelayedExecuter sendDelayedExecutor = new DelayedExecuter();
@@ -126,10 +128,12 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
         virtualDatapointHandlers.add(new PressVirtualDatapointHandler());
     }
 
-    public AbstractHomematicGateway(String id, HomematicConfig config, HomematicGatewayAdapter gatewayAdapter) {
+    public AbstractHomematicGateway(String id, HomematicConfig config, HomematicGatewayAdapter gatewayAdapter,
+            HttpClient httpClient) {
         this.id = id;
         this.config = config;
         this.gatewayAdapter = gatewayAdapter;
+        this.httpClient = httpClient;
     }
 
     @Override
@@ -210,11 +214,11 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
     /**
      * Starts the Homematic gateway client.
      */
-    protected void startClients() throws IOException {
+    protected synchronized void startClients() throws IOException {
         for (TransferMode mode : availableInterfaces.values()) {
             if (!rpcClients.containsKey(mode)) {
                 rpcClients.put(mode,
-                        mode == TransferMode.XML_RPC ? new XmlRpcClient(config) : new BinRpcClient(config));
+                        mode == TransferMode.XML_RPC ? new XmlRpcClient(config, httpClient) : new BinRpcClient(config));
             }
         }
     }
@@ -222,7 +226,7 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
     /**
      * Stops the Homematic gateway client.
      */
-    protected void stopClients() {
+    protected synchronized void stopClients() {
         for (RpcClient<?> rpcClient : rpcClients.values()) {
             rpcClient.dispose();
         }
@@ -232,7 +236,7 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
     /**
      * Starts the Homematic RPC server.
      */
-    private void startServers() throws IOException {
+    private synchronized void startServers() throws IOException {
         for (TransferMode mode : availableInterfaces.values()) {
             if (!rpcServers.containsKey(mode)) {
                 RpcServer rpcServer = mode == TransferMode.XML_RPC ? new XmlRpcServer(this, config)
@@ -249,7 +253,7 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
     /**
      * Stops the Homematic RPC server.
      */
-    private void stopServers() {
+    private synchronized void stopServers() {
         for (HmInterface hmInterface : availableInterfaces.keySet()) {
             try {
                 getRpcClient(hmInterface).release(hmInterface);
@@ -525,14 +529,14 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
     @Override
     public void setInstallMode(boolean enable, int seconds) throws IOException {
         HmDevice gwExtrasHm = devices.get(HmDevice.ADDRESS_GATEWAY_EXTRAS);
-        
+
         if (gwExtrasHm != null) {
             // since the homematic virtual device exist: try setting install mode via its dataPoints
             HmDatapoint installModeDataPoint = null;
             HmDatapoint installModeDurationDataPoint = null;
 
             // collect virtual datapoints to be accessed
-            HmChannel hmChannel = gwExtrasHm.getChannel(HmChannel.CHANNEL_NUMBER_EXTRAS);            
+            HmChannel hmChannel = gwExtrasHm.getChannel(HmChannel.CHANNEL_NUMBER_EXTRAS);
             HmDatapointInfo installModeDurationDataPointInfo = new HmDatapointInfo(HmParamsetType.VALUES, hmChannel,
                     HomematicConstants.VIRTUAL_DATAPOINT_NAME_INSTALL_MODE_DURATION);
             if (enable) {
@@ -541,16 +545,16 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
 
             HmDatapointInfo installModeDataPointInfo = new HmDatapointInfo(HmParamsetType.VALUES, hmChannel,
                     HomematicConstants.VIRTUAL_DATAPOINT_NAME_INSTALL_MODE);
-            
+
             installModeDataPoint = hmChannel.getDatapoint(installModeDataPointInfo);
-                        
+
             // first set duration on the datapoint
             if (installModeDurationDataPoint != null) {
                 try {
                     VirtualDatapointHandler handler = getVirtualDatapointHandler(installModeDurationDataPoint, null);
                     handler.handleCommand(this, installModeDurationDataPoint, new HmDatapointConfig(), seconds);
-                    
-                    // notify thing if exists 
+
+                    // notify thing if exists
                     gatewayAdapter.onStateUpdated(installModeDurationDataPoint);
                 } catch (HomematicClientException ex) {
                     logger.warn("Failed to send datapoint {}", installModeDurationDataPoint, ex);
@@ -562,17 +566,17 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
                 try {
                     VirtualDatapointHandler handler = getVirtualDatapointHandler(installModeDataPoint, null);
                     handler.handleCommand(this, installModeDataPoint, new HmDatapointConfig(), enable);
-                    
+
                     // notify thing if exists
                     gatewayAdapter.onStateUpdated(installModeDataPoint);
-                    
+
                     return;
                 } catch (HomematicClientException ex) {
                     logger.warn("Failed to send datapoint {}", installModeDataPoint, ex);
                 }
             }
         }
-        
+
         // no gwExtrasHm available (or previous approach failed), therefore use rpc client directly
         for (HmInterface hmInterface : availableInterfaces.keySet()) {
             if (hmInterface == HmInterface.RF || hmInterface == HmInterface.CUXD) {
@@ -580,7 +584,7 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
             }
         }
     }
-    
+
     @Override
     public int getInstallMode() throws IOException {
         for (HmInterface hmInterface : availableInterfaces.keySet()) {
@@ -588,7 +592,7 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
                 return getRpcClient(hmInterface).getInstallMode(hmInterface);
             }
         }
-        
+
         throw new IllegalStateException("Could not determine install mode because no suitable interface exists");
     }
 
@@ -842,6 +846,39 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
         }
     }
 
+    @Override
+    public void deleteDevice(String address, boolean reset, boolean force, boolean defer) {
+        for (RpcClient<?> rpcClient : rpcClients.values()) {
+            try {
+                rpcClient.deleteDevice(getDevice(address), translateFlags(reset, force, defer));
+            } catch (HomematicClientException e) {
+                // thrown by getDevice(address) if no device for the given address is paired on the gateway
+                logger.info("Device deletion not possible: {}", e.getMessage());
+            } catch (IOException e) {
+                logger.warn("Device deletion failed: {}", e.getMessage(), e);
+            }
+        }
+    }
+
+    private int translateFlags(boolean reset, boolean force, boolean defer) {
+        final int resetFlag = 0b001;
+        final int forceFlag = 0b010;
+        final int deferFlag = 0b100;
+        int resultFlag = 0;
+
+        if (reset) {
+            resultFlag += resetFlag;
+        }
+        if (force) {
+            resultFlag += forceFlag;
+        }
+        if (defer) {
+            resultFlag += deferFlag;
+        }
+
+        return resultFlag;
+    }
+
     /**
      * Thread which validates the connection to the gateway and restarts the RPC client if necessary.
      */
@@ -854,7 +891,7 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
         public void run() {
             try {
                 if (ping && !pong) {
-                    handleInvalidConnection();
+                    handleInvalidConnection("No Pong received!");
                 }
 
                 pong = false;
@@ -862,14 +899,14 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
                     // the CCU1 does not support the ping command, we need a workaround
                     getRpcClient(getDefaultInterface()).listBidcosInterfaces(getDefaultInterface());
                     // if there is no exception, connection is valid
-                    connectionConfirmed();
+                    pongReceived();
                 } else {
                     getRpcClient(getDefaultInterface()).ping(getDefaultInterface(), id);
                 }
                 ping = true;
             } catch (IOException ex) {
                 try {
-                    handleInvalidConnection();
+                    handleInvalidConnection("IOException " + ex.getMessage());
                 } catch (IOException ex2) {
                     // ignore
                 }
@@ -889,11 +926,11 @@ public abstract class AbstractHomematicGateway implements RpcEventListener, Home
             }
         }
 
-        private void handleInvalidConnection() throws IOException {
+        private void handleInvalidConnection(String cause) throws IOException {
             ping = false;
             if (!connectionLost) {
                 connectionLost = true;
-                logger.warn("Connection lost on gateway '{}'", id);
+                logger.warn("Connection lost on gateway '{}', cause: \"{}\"", id, cause);
                 gatewayAdapter.onConnectionLost();
             }
             stopServers();
