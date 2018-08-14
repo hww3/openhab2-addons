@@ -39,7 +39,6 @@ import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.smarthome.config.core.status.ConfigStatusMessage;
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.library.types.QuantityType;
-import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.library.unit.ImperialUnits;
 import org.eclipse.smarthome.core.library.unit.SIUnits;
 import org.eclipse.smarthome.core.library.unit.SmartHomeUnits;
@@ -287,7 +286,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     private void updateThermostat(int heat, int cool, int mode) {
         Map<String, String> params = new HashMap<>();
-        log.info("Updating thermostat {}  heat:{} cool {} mode: {}", getThing().getLabel(), heat, cool, mode);
+        log.debug("Updating thermostat {}  heat:{} cool {} mode: {}", getThing().getLabel(), heat, cool, mode);
         if (heat > 0) {
             params.put("heattemp", String.valueOf(heat));
         }
@@ -328,9 +327,8 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             updateUnits(infoData);
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_HEATING_SETPOINT), getHeatingSetpoint());
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_COOLING_SETPOINT), getCoolingSetpoint());
-            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_STATE),
-                    new StringType("" + getSystemState()));
-            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_MODE), new StringType("" + getSystemMode()));
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_STATE), new DecimalType(getSystemState()));
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_MODE), new DecimalType(getSystemMode()));
 
             goOnline();
         } catch (VenstarCommunicationException | JsonSyntaxException e) {
