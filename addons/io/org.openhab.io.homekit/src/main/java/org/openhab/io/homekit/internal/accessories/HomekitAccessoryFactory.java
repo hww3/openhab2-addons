@@ -8,12 +8,15 @@
  */
 package org.openhab.io.homekit.internal.accessories;
 
+import org.eclipse.smarthome.core.events.EventPublisher;
 import org.eclipse.smarthome.core.items.ItemRegistry;
 import org.openhab.io.homekit.internal.HomekitAccessoryUpdater;
 import org.openhab.io.homekit.internal.HomekitSettings;
 import org.openhab.io.homekit.internal.HomekitTaggedItem;
 
 import com.beowulfe.hap.HomekitAccessory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Creates a HomekitAccessory for a given HomekitTaggedItem.
@@ -22,29 +25,34 @@ import com.beowulfe.hap.HomekitAccessory;
  */
 public class HomekitAccessoryFactory {
 
+    private static Logger logger = LoggerFactory.getLogger(HomekitAccessoryFactory.class);
+
     public static HomekitAccessory create(HomekitTaggedItem taggedItem, ItemRegistry itemRegistry,
-            HomekitAccessoryUpdater updater, HomekitSettings settings) throws Exception {
-        switch (taggedItem.getDeviceType()) {
+                                          HomekitAccessoryUpdater updater, HomekitSettings settings, EventPublisher eventPublisher) throws Exception {
+       switch (taggedItem.getDeviceType()) {
             case LIGHTBULB:
-                return new HomekitLightbulbImpl(taggedItem, itemRegistry, updater);
+                return new HomekitLightbulbImpl(taggedItem, itemRegistry, updater, eventPublisher);
 
             case DIMMABLE_LIGHTBULB:
-                return new HomekitDimmableLightbulbImpl(taggedItem, itemRegistry, updater);
+                return new HomekitDimmableLightbulbImpl(taggedItem, itemRegistry, updater, eventPublisher);
 
             case COLORFUL_LIGHTBULB:
-                return new HomekitColorfulLightbulbImpl(taggedItem, itemRegistry, updater);
+                return new HomekitColorfulLightbulbImpl(taggedItem, itemRegistry, updater, eventPublisher);
 
             case THERMOSTAT:
-                return new HomekitThermostatImpl(taggedItem, itemRegistry, updater, settings);
+                return new HomekitThermostatImpl(taggedItem, itemRegistry, updater, settings, eventPublisher);
 
             case SWITCH:
-                return new HomekitSwitchImpl(taggedItem, itemRegistry, updater);
+                return new HomekitSwitchImpl(taggedItem, itemRegistry, updater, eventPublisher);
 
             case TEMPERATURE_SENSOR:
-                return new HomekitTemperatureSensorImpl(taggedItem, itemRegistry, updater, settings);
+                return new HomekitTemperatureSensorImpl(taggedItem, itemRegistry, updater, settings, eventPublisher);
 
             case HUMIDITY_SENSOR:
-                return new HomekitHumiditySensorImpl(taggedItem, itemRegistry, updater);
+                return new HomekitHumiditySensorImpl(taggedItem, itemRegistry, updater, eventPublisher);
+
+           case FAN:
+               return new HomekitFanImpl(taggedItem, itemRegistry, updater, settings, eventPublisher);
         }
 
         throw new Exception("Unknown homekit type: " + taggedItem.getDeviceType());
