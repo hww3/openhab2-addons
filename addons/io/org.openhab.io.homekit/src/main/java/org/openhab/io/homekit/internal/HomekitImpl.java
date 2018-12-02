@@ -12,9 +12,12 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.security.InvalidAlgorithmParameterException;
 
+import org.eclipse.smarthome.core.events.EventPublisher;
 import org.eclipse.smarthome.core.items.ItemRegistry;
 import org.eclipse.smarthome.core.storage.StorageService;
 import org.openhab.io.homekit.Homekit;
+import org.osgi.framework.BundleContext;
+import org.osgi.framework.ServiceReference;
 import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,7 +36,9 @@ public class HomekitImpl implements Homekit {
     private HomekitServer homekit;
     private HomekitRoot bridge;
     private StorageService storageService;
-    private final HomekitChangeListener changeListener = new HomekitChangeListener();
+    private EventPublisher eventPublisher;
+    private HomekitChangeListener changeListener;
+    private ItemRegistry itemRegistry;
     private Logger logger = LoggerFactory.getLogger(HomekitImpl.class);
 
     public void setStorageService(StorageService storageService) {
@@ -41,8 +46,7 @@ public class HomekitImpl implements Homekit {
     }
 
     public void setItemRegistry(ItemRegistry itemRegistry) {
-        changeListener.setSettings(settings);
-        changeListener.setItemRegistry(itemRegistry);
+       this.itemRegistry = itemRegistry;
     }
 
     protected synchronized void activate(ComponentContext componentContext) {
@@ -50,6 +54,18 @@ public class HomekitImpl implements Homekit {
     }
 
     protected synchronized void modified(ComponentContext componentContext) {
+
+        BundleContext bc = componentContext.getBundleContext();
+        ServiceReference sr = bc.getServiceReference(EventPublisher.class);
+        EventPublisher service = (EventPublisher)bc.getService(sr);
+        logger.warn("Service: " + service);
+        eventPublisher = service;
+
+        changeListener = new HomekitChangeListener();
+        changeListener.setPublisher(eventPublisher);
+        changeListener.setSettings(settings);
+        changeListener.setItemRegistry(itemRegistry);
+
         try {
             settings.fill(componentContext.getProperties());
             changeListener.setSettings(settings);
@@ -62,6 +78,7 @@ public class HomekitImpl implements Homekit {
         } catch (Exception e) {
             logger.error("Could not initialize homekit: {}", e.getMessage(), e);
         }
+
     }
 
     protected void deactivate() {

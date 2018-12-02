@@ -10,6 +10,7 @@ package org.openhab.io.homekit.internal;
 
 import java.util.Collection;
 
+import org.eclipse.smarthome.core.events.EventPublisher;
 import org.eclipse.smarthome.core.items.Item;
 import org.eclipse.smarthome.core.items.ItemRegistry;
 import org.eclipse.smarthome.core.items.ItemRegistryChangeListener;
@@ -28,6 +29,7 @@ import com.beowulfe.hap.HomekitRoot;
 public class HomekitChangeListener implements ItemRegistryChangeListener {
 
     private ItemRegistry itemRegistry;
+    private EventPublisher publisher;
     private HomekitAccessoryUpdater updater = new HomekitAccessoryUpdater();
     private Logger logger = LoggerFactory.getLogger(HomekitChangeListener.class);
     private final HomekitAccessoryRegistry accessoryRegistry = new HomekitAccessoryRegistry();
@@ -87,6 +89,10 @@ public class HomekitChangeListener implements ItemRegistryChangeListener {
         this.settings = settings;
     }
 
+    public void setPublisher(EventPublisher eventPublisher) {
+        this.publisher = eventPublisher;
+    }
+
     public void stop() {
         if (this.itemRegistry != null) {
             this.itemRegistry.removeRegistryChangeListener(this);
@@ -94,10 +100,11 @@ public class HomekitChangeListener implements ItemRegistryChangeListener {
     }
 
     private void createRootDevice(HomekitTaggedItem taggedItem) {
+        assert(publisher != null);
         try {
             logger.debug("Adding homekit device {}", taggedItem.getItem().getName());
             accessoryRegistry
-                    .addRootDevice(HomekitAccessoryFactory.create(taggedItem, itemRegistry, updater, settings));
+                    .addRootDevice(HomekitAccessoryFactory.create(taggedItem, itemRegistry, updater, settings, publisher));
             logger.debug("Added homekit device {}", taggedItem.getItem().getName());
         } catch (Exception e) {
             logger.error("Could not add device: {}", e.getMessage(), e);

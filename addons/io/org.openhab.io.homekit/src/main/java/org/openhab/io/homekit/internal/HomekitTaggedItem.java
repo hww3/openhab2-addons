@@ -38,12 +38,13 @@ public class HomekitTaggedItem {
         this.item = item;
         for (String tag : item.getTags()) {
 
-            if (item instanceof ColorItem) {
-                tag = "Colorful" + tag;
-            } else if (item instanceof DimmerItem) {
-                tag = "Dimmable" + tag;
+            if(!tag.startsWith("homekit:")) {
+                if (item instanceof ColorItem) {
+                    tag = "Colorful" + tag;
+                } else if (item instanceof DimmerItem) {
+                    tag = "Dimmable" + tag;
+                }
             }
-
             /*
              * Is the item part of a tagged group AND does it have a matching CharacteristicType ?
              * This matches items with tags that require a parent group like the "TargetTemperature" in

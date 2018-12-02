@@ -10,6 +10,7 @@ package org.openhab.io.homekit.internal.accessories;
 
 import java.util.concurrent.CompletableFuture;
 
+import org.eclipse.smarthome.core.events.EventPublisher;
 import org.eclipse.smarthome.core.items.GenericItem;
 import org.eclipse.smarthome.core.items.GroupItem;
 import org.eclipse.smarthome.core.items.ItemRegistry;
@@ -30,8 +31,8 @@ abstract class AbstractHomekitLightbulbImpl<T extends SwitchItem> extends Abstra
         implements Lightbulb {
 
     public AbstractHomekitLightbulbImpl(HomekitTaggedItem taggedItem, ItemRegistry itemRegistry,
-            HomekitAccessoryUpdater updater, Class<T> expectedItemClass) {
-        super(taggedItem, itemRegistry, updater, expectedItemClass);
+                                        HomekitAccessoryUpdater updater, EventPublisher publisher, Class<T> expectedItemClass) {
+        super(taggedItem, itemRegistry, updater, publisher, expectedItemClass);
     }
 
     @Override

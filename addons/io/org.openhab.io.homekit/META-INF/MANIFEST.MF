@@ -30,6 +30,7 @@ Import-Package:
  org.eclipse.smarthome.core.items.events,
  org.eclipse.smarthome.core.library.items,
  org.eclipse.smarthome.core.library.types,
+ org.eclipse.smarthome.core.library.unit,
  org.eclipse.smarthome.core.storage,
  org.eclipse.smarthome.core.thing,
  org.eclipse.smarthome.core.thing.binding,
@@ -40,5 +41,7 @@ Import-Package:
  org.osgi.framework,
  org.osgi.service.component,
  org.osgi.service.event,
- org.slf4j
+ org.slf4j,
+ javax.measure,
+ javax.measure.quantity
 Service-Component: OSGI-INF/*.xml

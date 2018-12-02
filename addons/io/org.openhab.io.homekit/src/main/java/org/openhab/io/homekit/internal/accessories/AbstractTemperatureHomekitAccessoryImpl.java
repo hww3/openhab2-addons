@@ -8,14 +8,22 @@
  */
 package org.openhab.io.homekit.internal.accessories;
 
+import org.eclipse.smarthome.core.events.EventPublisher;
 import org.eclipse.smarthome.core.items.GenericItem;
 import org.eclipse.smarthome.core.items.ItemRegistry;
+import org.eclipse.smarthome.core.library.types.DecimalType;
+import org.eclipse.smarthome.core.library.types.QuantityType;
+import org.eclipse.smarthome.core.types.State;
 import org.openhab.io.homekit.internal.HomekitAccessoryUpdater;
 import org.openhab.io.homekit.internal.HomekitSettings;
 import org.openhab.io.homekit.internal.HomekitTaggedItem;
 
 import com.beowulfe.hap.accessories.TemperatureSensor;
 import com.beowulfe.hap.accessories.properties.TemperatureUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.measure.Unit;
 
 /**
  *
@@ -24,11 +32,13 @@ import com.beowulfe.hap.accessories.properties.TemperatureUnit;
 abstract class AbstractTemperatureHomekitAccessoryImpl<T extends GenericItem> extends AbstractHomekitAccessoryImpl<T>
         implements TemperatureSensor {
 
+    private final Logger logger = LoggerFactory.getLogger(AbstractTemperatureHomekitAccessoryImpl.class);
+
     private final HomekitSettings settings;
 
     public AbstractTemperatureHomekitAccessoryImpl(HomekitTaggedItem taggedItem, ItemRegistry itemRegistry,
-            HomekitAccessoryUpdater updater, HomekitSettings settings, Class<T> expectedItemClass) {
-        super(taggedItem, itemRegistry, updater, expectedItemClass);
+                                                   HomekitAccessoryUpdater updater, EventPublisher eventPublisher, HomekitSettings settings, Class<T> expectedItemClass) {
+        super(taggedItem, itemRegistry, updater, eventPublisher, expectedItemClass);
         this.settings = settings;
     }
 
@@ -62,4 +72,24 @@ abstract class AbstractTemperatureHomekitAccessoryImpl<T extends GenericItem> ex
             return degrees;
         }
     }
+
+
+    protected double toUnit(State val, Unit u) {
+        double oVal;
+
+        if(val instanceof QuantityType) {
+            QuantityType quantityType = (QuantityType)val;
+            return quantityType.toUnit(u).doubleValue();
+        } else if(val instanceof DecimalType) {
+            QuantityType quantityType;
+            quantityType = new QuantityType(((DecimalType) val).doubleValue(), u);
+            return quantityType.toUnit(u).doubleValue();
+        } else {
+            logger.warn("Expected value of type DecimalType or QuantityType, received " + val.getClass().getName() + ": " + val);
+
+            // I will surely go to hell for this, but it's the easiest solution to the problem.
+            throw new IllegalArgumentException("Illegal argument type");
+        }
+    }
+
 }

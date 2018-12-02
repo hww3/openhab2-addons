@@ -10,6 +10,7 @@ package org.openhab.io.homekit.internal.accessories;
 
 import java.util.concurrent.CompletableFuture;
 
+import org.eclipse.smarthome.core.events.EventPublisher;
 import org.eclipse.smarthome.core.items.GenericItem;
 import org.eclipse.smarthome.core.items.GroupItem;
 import org.eclipse.smarthome.core.items.ItemRegistry;
@@ -30,8 +31,8 @@ import com.beowulfe.hap.accessories.DimmableLightbulb;
 class HomekitDimmableLightbulbImpl extends AbstractHomekitLightbulbImpl<DimmerItem>implements DimmableLightbulb {
 
     public HomekitDimmableLightbulbImpl(HomekitTaggedItem taggedItem, ItemRegistry itemRegistry,
-            HomekitAccessoryUpdater updater) {
-        super(taggedItem, itemRegistry, updater, DimmerItem.class);
+                                        HomekitAccessoryUpdater updater, EventPublisher eventPublisher) {
+        super(taggedItem, itemRegistry, updater, eventPublisher, DimmerItem.class);
     }
 
     @Override

@@ -8,6 +8,7 @@
  */
 package org.openhab.io.homekit.internal.accessories;
 
+import org.eclipse.smarthome.core.events.EventPublisher;
 import org.eclipse.smarthome.core.items.GenericItem;
 import org.eclipse.smarthome.core.items.GroupItem;
 import org.eclipse.smarthome.core.items.Item;
@@ -32,16 +33,19 @@ abstract class AbstractHomekitAccessoryImpl<T extends GenericItem> implements Ho
     private final String itemLabel;
     private final ItemRegistry itemRegistry;
     private final HomekitAccessoryUpdater updater;
+    protected final EventPublisher eventPublisher;
 
     private Logger logger = LoggerFactory.getLogger(AbstractHomekitAccessoryImpl.class);
 
     public AbstractHomekitAccessoryImpl(HomekitTaggedItem taggedItem, ItemRegistry itemRegistry,
-            HomekitAccessoryUpdater updater, Class<T> expectedItemClass) {
+                                        HomekitAccessoryUpdater updater, EventPublisher eventPublisher, Class<T> expectedItemClass) {
         this.accessoryId = taggedItem.getId();
         this.itemName = taggedItem.getItem().getName();
         this.itemLabel = taggedItem.getItem().getLabel();
         this.itemRegistry = itemRegistry;
         this.updater = updater;
+        assert (eventPublisher != null);
+        this.eventPublisher = eventPublisher;
         Item baseItem = taggedItem.getItem();
         if (baseItem instanceof GroupItem && ((GroupItem) baseItem).getBaseItem() != null) {
             baseItem = ((GroupItem) baseItem).getBaseItem();

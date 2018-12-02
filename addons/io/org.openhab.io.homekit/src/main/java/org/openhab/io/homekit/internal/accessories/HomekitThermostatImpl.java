@@ -11,14 +11,21 @@ package org.openhab.io.homekit.internal.accessories;
 import java.math.BigDecimal;
 import java.util.concurrent.CompletableFuture;
 
+import org.eclipse.smarthome.core.events.EventFactory;
+import org.eclipse.smarthome.core.events.EventPublisher;
 import org.eclipse.smarthome.core.items.GenericItem;
 import org.eclipse.smarthome.core.items.GroupItem;
 import org.eclipse.smarthome.core.items.Item;
 import org.eclipse.smarthome.core.items.ItemRegistry;
+import org.eclipse.smarthome.core.items.events.ItemCommandEvent;
+import org.eclipse.smarthome.core.items.events.ItemEventFactory;
 import org.eclipse.smarthome.core.library.items.NumberItem;
 import org.eclipse.smarthome.core.library.items.StringItem;
 import org.eclipse.smarthome.core.library.types.DecimalType;
+import org.eclipse.smarthome.core.library.types.QuantityType;
 import org.eclipse.smarthome.core.library.types.StringType;
+import org.eclipse.smarthome.core.library.unit.SIUnits;
+import org.eclipse.smarthome.core.types.Command;
 import org.eclipse.smarthome.core.types.State;
 import org.openhab.io.homekit.internal.HomekitAccessoryUpdater;
 import org.openhab.io.homekit.internal.HomekitSettings;
@@ -29,6 +36,8 @@ import org.slf4j.LoggerFactory;
 import com.beowulfe.hap.HomekitCharacteristicChangeCallback;
 import com.beowulfe.hap.accessories.properties.ThermostatMode;
 import com.beowulfe.hap.accessories.thermostat.BasicThermostat;
+
+import javax.measure.quantity.Temperature;
 
 /**
  * Implements Thermostat as a GroupedAccessory made up of multiple items:
@@ -54,8 +63,8 @@ class HomekitThermostatImpl extends AbstractTemperatureHomekitAccessoryImpl<Grou
     private Logger logger = LoggerFactory.getLogger(HomekitThermostatImpl.class);
 
     public HomekitThermostatImpl(HomekitTaggedItem taggedItem, ItemRegistry itemRegistry,
-            HomekitAccessoryUpdater updater, HomekitSettings settings) {
-        super(taggedItem, itemRegistry, updater, settings, GroupItem.class);
+                                 HomekitAccessoryUpdater updater, HomekitSettings settings, EventPublisher eventPublisher) {
+        super(taggedItem, itemRegistry, updater, eventPublisher, settings, GroupItem.class);
         this.groupName = taggedItem.getItem().getName();
         this.settings = settings;
     }
@@ -128,10 +137,17 @@ class HomekitThermostatImpl extends AbstractTemperatureHomekitAccessoryImpl<Grou
     @Override
     public CompletableFuture<Double> getCurrentTemperature() {
         Item item = getItemRegistry().get(currentTemperatureItemName);
-        DecimalType state = (DecimalType) item.getStateAs(DecimalType.class);
+
+        State s = item.getState();
+        if(s instanceof QuantityType)
+            return CompletableFuture.completedFuture(toUnit(s, SIUnits.CELSIUS));
+
+        DecimalType state = item.getStateAs(DecimalType.class);
+
         if (state == null) {
             return CompletableFuture.completedFuture(null);
         }
+
         return CompletableFuture.completedFuture(convertToCelsius(state.doubleValue()));
     }
 
@@ -144,10 +160,16 @@ class HomekitThermostatImpl extends AbstractTemperatureHomekitAccessoryImpl<Grou
     public CompletableFuture<Double> getTargetTemperature() {
         if (targetTemperatureItemName != null) {
             Item item = getItemRegistry().get(targetTemperatureItemName);
-            DecimalType state = (DecimalType) item.getStateAs(DecimalType.class);
+            State s = item.getState();
+            if(s instanceof QuantityType)
+                return CompletableFuture.completedFuture(toUnit(s, SIUnits.CELSIUS));
+
+            DecimalType state = item.getStateAs(DecimalType.class);
+
             if (state == null) {
                 return CompletableFuture.completedFuture(null);
             }
+
             return CompletableFuture.completedFuture(convertToCelsius(state.doubleValue()));
         } else {
             return CompletableFuture.completedFuture(null);
@@ -181,7 +203,10 @@ class HomekitThermostatImpl extends AbstractTemperatureHomekitAccessoryImpl<Grou
     @Override
     public void setTargetTemperature(Double value) throws Exception {
         NumberItem item = getGenericItem(targetTemperatureItemName);
-        item.send(new DecimalType(BigDecimal.valueOf(convertFromCelsius(value))));
+        ItemCommandEvent command = ItemEventFactory.createCommandEvent(item.getName(),
+                new QuantityType<Temperature>(value, SIUnits.CELSIUS));
+
+        eventPublisher.post(command);
     }
 
     @Override
