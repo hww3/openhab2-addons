@@ -415,7 +415,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             throws IllegalArgumentException {
         QuantityType<Temperature> temparatureQuantity = quantity.toUnit(unit);
         if (temparatureQuantity == null) {
-            return null;
+            return quantity.toBigDecimal();
         }
 
         BigDecimal value = temparatureQuantity.toBigDecimal();
