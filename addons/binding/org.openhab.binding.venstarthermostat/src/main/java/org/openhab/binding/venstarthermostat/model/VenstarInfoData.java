@@ -8,6 +8,18 @@ public class VenstarInfoData {
     int mode;
     int tempunits;
 
+    public VenstarInfoData() {
+        super();
+    }
+
+    public VenstarInfoData(double cooltemp, double heattemp, int state, int mode) {
+        super();
+        this.cooltemp = cooltemp;
+        this.heattemp = heattemp;
+        this.state = state;
+        this.mode = mode;
+    }
+
     public double getCooltemp() {
         return cooltemp;
     }
