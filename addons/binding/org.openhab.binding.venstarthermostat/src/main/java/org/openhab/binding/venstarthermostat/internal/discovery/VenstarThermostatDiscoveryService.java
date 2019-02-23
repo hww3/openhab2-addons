@@ -21,18 +21,14 @@ import org.eclipse.smarthome.config.discovery.AbstractDiscoveryService;
 import org.eclipse.smarthome.config.discovery.DiscoveryResult;
 import org.eclipse.smarthome.config.discovery.DiscoveryResultBuilder;
 import org.eclipse.smarthome.config.discovery.DiscoveryService;
-import org.eclipse.smarthome.config.discovery.DiscoveryServiceCallback;
-import org.eclipse.smarthome.config.discovery.ExtendedDiscoveryService;
-import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingUID;
 import org.openhab.binding.venstarthermostat.VenstarThermostatBindingConstants;
-import org.openhab.binding.venstarthermostat.handler.VenstarThermostatHandler;
 import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Component(service = DiscoveryService.class, immediate = true, configurationPid = "binding.venstarthermostat")
-public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService implements ExtendedDiscoveryService {
+public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService {
     private final Logger log = LoggerFactory.getLogger(VenstarThermostatDiscoveryService.class);
     private static final String COLOR_TOUCH_DISCOVERY_MESSAGE = "M-SEARCH * HTTP/1.1\r\n"
             + "Host: 239.255.255.250:1900\r\n" + "Man: ssdp:discover\r\n" + "ST: colortouch:ecp\r\n" + "\r\n";
@@ -40,7 +36,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
             .compile("^colortouch:ecp((?::[0-9a-fA-F]{2}){6}):name:(.+)(?::type:(\\w+))");
     private static final String SSDP_MATCH = "colortouch:ecp";
     private static final int BACKGROUND_SCAN_INTERVAL = 300; // seconds
-    private DiscoveryServiceCallback discoveryServiceCallback;
+    // private DiscoveryServiceCallback discoveryServiceCallback;
     private ScheduledFuture<?> scheduledFuture;
 
     public VenstarThermostatDiscoveryService() {
@@ -69,10 +65,10 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
         doRunRun();
     }
 
-    @Override
-    public void setDiscoveryServiceCallback(DiscoveryServiceCallback discoveryServiceCallback) {
-        this.discoveryServiceCallback = discoveryServiceCallback;
-    }
+    // @Override
+    // public void setDiscoveryServiceCallback(DiscoveryServiceCallback discoveryServiceCallback) {
+    // this.discoveryServiceCallback = discoveryServiceCallback;
+    // }
 
     protected synchronized void doRunRun() {
         log.debug("Sending SSDP discover.");
@@ -157,9 +153,9 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
      * search keywords. The search is not case sensitive.
      *
      * @param socket
-     *            The socket where the answers arrive.
+     *                     The socket where the answers arrive.
      * @param keywords
-     *            The keywords to be searched for.
+     *                     The keywords to be searched for.
      * @return
      * @throws IOException
      */
@@ -229,20 +225,20 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
 
         log.debug("Got discovered device.");
 
-        Thing thing = getExistingThing(thingUid);
-        if (thing != null) {
-            log.debug("Already have thing with ID=<{}>", thingUid);
-            String thingUrl = thing.getProperties().get(VenstarThermostatBindingConstants.PROPERTY_URL);
-            log.debug("ThingURL=<{}>, discoveredUrl=<{}>", thingUrl, url);
-            if (thingUrl == null || !thingUrl.equals(url)) {
-                ((VenstarThermostatHandler) thing.getHandler()).updateUrl(url);
-                thing.getHandler().thingUpdated(thing);
-                log.info("Updated url for existing Thermostat => {}", url);
-            }
-            return;
-        } else {
-            log.debug("New Device, adding to inbox");
-        }
+        // Thing thing = getExistingThing(thingUid);
+        // if (thing != null) {
+        // log.debug("Already have thing with ID=<{}>", thingUid);
+        // String thingUrl = thing.getProperties().get(VenstarThermostatBindingConstants.PROPERTY_URL);
+        // log.debug("ThingURL=<{}>, discoveredUrl=<{}>", thingUrl, url);
+        // if (thingUrl == null || !thingUrl.equals(url)) {
+        // ((VenstarThermostatHandler) thing.getHandler()).updateUrl(url);
+        // thing.getHandler().thingUpdated(thing);
+        // log.info("Updated url for existing Thermostat => {}", url);
+        // }
+        // return;
+        // } else {
+        // log.debug("New Device, adding to inbox");
+        // }
 
         String label = String.format("Venstar Thermostat (%s)", name);
         result = DiscoveryResultBuilder.create(thingUid).withLabel(label).withRepresentationProperty(uuid)
@@ -252,10 +248,10 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
         this.thingDiscovered(result);
     }
 
-    public Thing getExistingThing(ThingUID thingUid) {
-        if (discoveryServiceCallback != null) {
-            return discoveryServiceCallback.getExistingThing(thingUid);
-        }
-        return null;
-    }
+    // public Thing getExistingThing(ThingUID thingUid) {
+    // if (discoveryServiceCallback != null) {
+    // return discoveryServiceCallback.getExistingThing(thingUid);
+    // }
+    // return null;
+    // }
 }
