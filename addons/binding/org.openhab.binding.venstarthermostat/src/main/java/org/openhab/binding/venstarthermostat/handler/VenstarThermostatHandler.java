@@ -1,9 +1,14 @@
 /**
- * Copyright (c) 2014-2016 by the respective copyright holders.
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
+ *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.venstarthermostat.handler;
 
@@ -68,7 +73,7 @@ import com.google.gson.JsonSyntaxException;
  * sent to one of the channels.
  *
  * @author William Welliver - Initial contribution
- * @author Dan Cunningham
+ * @author Dan Cunningham - Jetty refactor and improvements
  */
 public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
@@ -77,9 +82,8 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     private List<VenstarSensor> sensorData = new ArrayList<>();
     private VenstarInfoData infoData = new VenstarInfoData();
     private Future<?> updatesTask;
-    private VenstarThermostatConfiguration config;
-    private HttpClient httpClient;
     private URL baseURL;
+    private final HttpClient httpClient;
 
     // Venstar Thermostats are most commonly installed in the US, so start with a reasonable default.
     private Unit<Temperature> unitSystem = ImperialUnits.FAHRENHEIT;
@@ -119,14 +123,9 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     public void handleCommand(ChannelUID channelUID, Command command) {
 
         if (command instanceof RefreshType) {
-            // TODO handle REFRESH commands
-            log.info("Refresh command requested for " + channelUID);
-            return;
-        }
-
-        // TODO Does the thermostat support setting temperatures using fractional degrees?
-
-        if (channelUID.getId().equals(CHANNEL_HEATING_SETPOINT)) {
+            log.debug("Refresh command requested for " + channelUID);
+            updateData();
+        } else if (channelUID.getId().equals(CHANNEL_HEATING_SETPOINT)) {
             QuantityType<Temperature> quantity = commandToQuantityType(command, unitSystem);
             int value = quantityToRoundedTemperature(quantity, unitSystem).intValue();
 
@@ -184,7 +183,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     private void connect() {
         stopUpdateTasks();
-        config = getConfigAs(VenstarThermostatConfiguration.class);
+        VenstarThermostatConfiguration config = getConfigAs(VenstarThermostatConfiguration.class);
         String url = getThing().getProperties().get(PROPERTY_URL);
         try {
             baseURL = new URL(url);
@@ -195,18 +194,18 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             httpClient.getAuthenticationStore().clearAuthenticationResults();
             httpClient.getAuthenticationStore().addAuthentication(new DigestAuthentication(baseURL.toURI(),
                     "thermostat", config.getUsername(), config.getPassword()));
-            startUpdatesTask();
+            startUpdatesTask(config.getRefresh());
         } catch (Exception e) {
-            log.error("Could not connect to URL  " + url, e);
+            log.debug("Could not connect to URL  " + url, e);
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
         }
     }
 
-    private synchronized void startUpdatesTask() {
+    private synchronized void startUpdatesTask(int seconds) {
         stopUpdateTasks();
         updatesTask = scheduler.scheduleAtFixedRate(() -> {
             updateData();
-        }, 0, config.refresh.intValue(), TimeUnit.SECONDS);
+        }, 0, seconds, TimeUnit.SECONDS);
     }
 
     private void stopUpdateTasks() {
@@ -291,7 +290,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             params.put("heattemp", String.valueOf(heat));
         }
         if (cool > 0) {
-            params.put("cooltemp", "" + String.valueOf(cool));
+            params.put("cooltemp", String.valueOf(cool));
         }
         params.put("mode", String.valueOf(mode));
         try {
@@ -302,7 +301,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
                 // update our local copy until the next refresh occurs
                 infoData = new VenstarInfoData(cool, heat, infoData.getState(), mode);
             } else {
-                log.warn("Failed to update thermostat: {}", res.getReason());
+                log.debug("Failed to update thermostat: {}", res.getReason());
                 goOffline(ThingStatusDetail.COMMUNICATION_ERROR, "Thermostat update failed: " + res.getReason());
             }
         } catch (VenstarCommunicationException | JsonSyntaxException e) {
@@ -346,7 +345,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         } else if (tempunits == 1) {
             unitSystem = SIUnits.CELSIUS;
         } else {
-            throw new RuntimeException("Thermostat returned unknown unit system type: " + tempunits);
+            log.warn("Thermostat returned unknown unit system type: {}", tempunits);
         }
     }
 
@@ -441,5 +440,4 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             super(message);
         }
     }
-
 }

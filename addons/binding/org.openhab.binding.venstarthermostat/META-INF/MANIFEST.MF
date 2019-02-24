@@ -1,3 +1,4 @@
+Automatic-Module-Name: org.openhab.binding.venstarthermostat
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
 Bundle-ActivationPolicy: lazy
@@ -35,5 +36,6 @@ Import-Package:
  org.eclipse.smarthome.core.types,
  org.slf4j
 Service-Component: OSGI-INF/*.xml
-Export-Package: org.openhab.binding.venstarthermostat,
- org.openhab.binding.venstarthermostat.handler
+Export-Package: org.openhab.binding.venstarthermostat;x-internal:=true,
+ org.openhab.binding.venstarthermostat.handler;x-internal:=true,
+ org.openhab.binding.venstarthermostat.model;x-internal:=true
