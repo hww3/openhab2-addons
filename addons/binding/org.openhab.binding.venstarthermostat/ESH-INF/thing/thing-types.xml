@@ -43,7 +43,7 @@
 	</thing-type>
 
 	<channel-type id="systemMode">
-		<item-type>Number</item-type>
+		<item-type>String</item-type>
 		<label>System Mode</label>
 		<description>Current System Operating Mode</description>
 		<state readOnly="false">
@@ -57,7 +57,7 @@
 	</channel-type>
 
 	<channel-type id="systemState">
-		<item-type>Number</item-type>
+		<item-type>String</item-type>
 		<label>System State</label>
 		<description>Current System Operating State</description>
 		<state readOnly="true">
