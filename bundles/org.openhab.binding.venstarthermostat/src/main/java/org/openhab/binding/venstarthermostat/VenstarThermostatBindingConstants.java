@@ -12,11 +12,10 @@
  */
 package org.openhab.binding.venstarthermostat;
 
+import java.util.Collections;
 import java.util.Set;
 
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
-
-import com.google.common.collect.ImmutableSet;
 
 /**
  * The {@link VenstarThermostatBinding} class defines common constants, which are
@@ -31,7 +30,7 @@ public class VenstarThermostatBindingConstants {
     // List of all Thing Type UIDs
     public final static ThingTypeUID THING_TYPE_COLOR_TOUCH = new ThingTypeUID(BINDING_ID, "colorTouchThermostat");
 
-    public final static Set<ThingTypeUID> SUPPORTED_THING_TYPES = ImmutableSet.of(THING_TYPE_COLOR_TOUCH);
+    public final static Set<ThingTypeUID> SUPPORTED_THING_TYPES = Collections.singleton(THING_TYPE_COLOR_TOUCH);
     // List of all Channel ids
     public final static String CHANNEL_TEMPERATURE = "temperature";
     public final static String CHANNEL_HUMIDITY = "humidity";
