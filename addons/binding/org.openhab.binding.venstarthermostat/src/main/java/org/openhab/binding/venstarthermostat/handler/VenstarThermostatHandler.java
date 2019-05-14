@@ -30,6 +30,7 @@ import javax.measure.Unit;
 import javax.measure.quantity.Dimensionless;
 import javax.measure.quantity.Temperature;
 
+import com.google.gson.GsonBuilder;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.jetty.client.api.ContentResponse;
 import org.eclipse.jetty.client.api.Request;
@@ -39,6 +40,7 @@ import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.smarthome.config.core.status.ConfigStatusMessage;
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.library.types.QuantityType;
+import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.library.unit.ImperialUnits;
 import org.eclipse.smarthome.core.library.unit.SIUnits;
 import org.eclipse.smarthome.core.library.unit.SmartHomeUnits;
@@ -53,10 +55,7 @@ import org.eclipse.smarthome.core.types.State;
 import org.eclipse.smarthome.core.types.UnDefType;
 import org.openhab.binding.venstarthermostat.VenstarThermostatBindingConstants;
 import org.openhab.binding.venstarthermostat.internal.VenstarThermostatConfiguration;
-import org.openhab.binding.venstarthermostat.model.VenstarInfoData;
-import org.openhab.binding.venstarthermostat.model.VenstarResponse;
-import org.openhab.binding.venstarthermostat.model.VenstarSensor;
-import org.openhab.binding.venstarthermostat.model.VenstarSensorData;
+import org.openhab.binding.venstarthermostat.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,12 +79,17 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     private VenstarThermostatConfiguration config;
     private HttpClient httpClient;
     private URL baseURL;
-
+    private Gson gson;
     // Venstar Thermostats are most commonly installed in the US, so start with a reasonable default.
     private Unit<Temperature> unitSystem = ImperialUnits.FAHRENHEIT;
 
     public VenstarThermostatHandler(Thing thing) {
         super(thing);
+
+        gson = new GsonBuilder().registerTypeAdapter(VenstarSystemState.class, new VenstarSystemStateSerializer())
+                .registerTypeAdapter(VenstarSystemMode.class, new VenstarSystemModeSerializer())
+                .create();
+
         httpClient = new HttpClient(new SslContextFactory(true));
         log.trace("VenstarThermostatHandler for thing {}", getThing().getUID());
     }
@@ -139,7 +143,13 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
             log.debug("Setting cooling setpoint to {}", value);
             setCoolingSetpoint(value);
         } else if (channelUID.getId().equals(CHANNEL_SYSTEM_MODE)) {
-            int value = commandToDecimalType(command).intValue();
+            VenstarSystemMode value;
+            if(command instanceof StringType) {
+                value = VenstarSystemMode.valueOf(((StringType)command).toString().toUpperCase());
+
+            } else {
+                value = VenstarSystemMode.fromInt(((DecimalType)command).intValue());
+            }
             log.debug("Setting system mode to  {}", value);
             setSystemMode(value);
         }
@@ -249,12 +259,12 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     private void setCoolingSetpoint(int cool) {
         int heat = getHeatingSetpoint().intValue();
-        int mode = getSystemMode();
+        VenstarSystemMode mode = getSystemMode();
 
         updateThermostat(heat, cool, mode);
     }
 
-    private void setSystemMode(int mode) {
+    private void setSystemMode(VenstarSystemMode mode) {
         int cool = getCoolingSetpoint().intValue();
         int heat = getHeatingSetpoint().intValue();
 
@@ -263,7 +273,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
 
     private void setHeatingSetpoint(int heat) {
         int cool = getCoolingSetpoint().intValue();
-        int mode = getSystemMode();
+        VenstarSystemMode mode = getSystemMode();
 
         updateThermostat(heat, cool, mode);
     }
@@ -276,15 +286,15 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         return new QuantityType<Temperature>(infoData.getHeattemp(), unitSystem);
     }
 
-    private int getSystemState() {
+    private VenstarSystemState getSystemState() {
         return infoData.getState();
     }
 
-    private int getSystemMode() {
+    private VenstarSystemMode getSystemMode() {
         return infoData.getMode();
     }
 
-    private void updateThermostat(int heat, int cool, int mode) {
+    private void updateThermostat(int heat, int cool, VenstarSystemMode mode) {
         Map<String, String> params = new HashMap<>();
         log.debug("Updating thermostat {}  heat:{} cool {} mode: {}", getThing().getLabel(), heat, cool, mode);
         if (heat > 0) {
@@ -296,7 +306,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         params.put("mode", String.valueOf(mode));
         try {
             String result = postData("/control", params);
-            VenstarResponse res = new Gson().fromJson(result, VenstarResponse.class);
+            VenstarResponse res = gson.fromJson(result, VenstarResponse.class);
             if (res.isSuccess()) {
                 log.debug("Updated thermostat");
                 // update our local copy until the next refresh occurs
@@ -316,19 +326,19 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     private void updateData() {
         try {
             String response = getData("/query/sensors");
-            VenstarSensorData res = new Gson().fromJson(response, VenstarSensorData.class);
+            VenstarSensorData res = gson.fromJson(response, VenstarSensorData.class);
             sensorData = res.getSensors();
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_TEMPERATURE), getTemperature());
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_EXTERNAL_TEMPERATURE), getOutdoorTemperature());
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_HUMIDITY), getHumidity());
 
             response = getData("/query/info");
-            infoData = new Gson().fromJson(response, VenstarInfoData.class);
+            infoData = gson.fromJson(response, VenstarInfoData.class);
             updateUnits(infoData);
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_HEATING_SETPOINT), getHeatingSetpoint());
             updateState(new ChannelUID(getThing().getUID(), CHANNEL_COOLING_SETPOINT), getCoolingSetpoint());
-            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_STATE), new DecimalType(getSystemState()));
-            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_MODE), new DecimalType(getSystemMode()));
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_STATE), new StringType(getSystemState().stateName()));
+            updateState(new ChannelUID(getThing().getUID(), CHANNEL_SYSTEM_MODE), new StringType(getSystemMode().modeName()));
 
             goOnline();
         } catch (VenstarCommunicationException | JsonSyntaxException e) {
