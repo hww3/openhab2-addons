@@ -15,6 +15,7 @@ package org.openhab.binding.venstarthermostat;
 import java.util.Collections;
 import java.util.Set;
 
+import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
 
 /**
@@ -23,6 +24,7 @@ import org.eclipse.smarthome.core.thing.ThingTypeUID;
  *
  * @author William Welliver - Initial contribution
  */
+@NonNullByDefault
 public class VenstarThermostatBindingConstants {
 
     public static final String BINDING_ID = "venstarthermostat";
