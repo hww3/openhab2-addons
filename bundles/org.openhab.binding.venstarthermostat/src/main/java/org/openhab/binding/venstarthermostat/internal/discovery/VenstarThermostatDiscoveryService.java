@@ -79,12 +79,12 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
 
     @Override
     protected void startScan() {
-        log.info("Starting Interactive Scan");
+        log.debug("Starting Interactive Scan");
         doRunRun();
     }
 
     protected synchronized void doRunRun() {
-        log.debug("Sending SSDP discover.");
+        log.trace("Sending SSDP discover.");
         for (int i = 0; i < 5; i++) {
             try {
                 Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
@@ -116,10 +116,10 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
         InetAddress m = InetAddress.getByName("239.255.255.250");
         final int port = 1900;
 
-        log.debug("Considering {}", ni.getName());
+        log.trace("Considering {}", ni.getName());
         try {
             if (!ni.isUp() || !ni.supportsMulticast()) {
-                log.debug("skipping interface {}", ni.getName());
+                log.trace("skipping interface {}", ni.getName());
                 return null;
             }
 
@@ -134,7 +134,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
                 }
             }
             if (a == null) {
-                log.debug("no ipv4 address on " + ni.getName());
+                log.trace("no ipv4 address on " + ni.getName());
                 return null;
             }
 
@@ -154,7 +154,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
             socket.send(datagramPacket);
             return socket;
         } catch (IOException e) {
-            log.debug("got ioexception: " + e.getMessage());
+            log.trace("got ioexception: " + e.getMessage());
         }
 
         return null;
@@ -165,9 +165,9 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
      * search keywords. The search is not case sensitive.
      *
      * @param socket
-     *                     The socket where the answers arrive.
+     *            The socket where the answers arrive.
      * @param keywords
-     *                     The keywords to be searched for.
+     *            The keywords to be searched for.
      * @return
      * @throws IOException
      */
@@ -179,7 +179,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
             try {
                 socket.receive(packet);
             } catch (Exception e) {
-                log.debug("Got exception while trying to receive UPnP packets: " + e.getMessage());
+                log.trace("Got exception while trying to receive UPnP packets: " + e.getMessage());
                 return;
             }
             String response = new String(packet.getData());
@@ -235,13 +235,13 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
 
         ThingUID thingUid = new ThingUID(VenstarThermostatBindingConstants.THING_TYPE_COLOR_TOUCH, uuid);
 
-        log.debug("Got discovered device.");
+        log.trace("Got discovered device.");
 
         String label = String.format("Venstar Thermostat (%s)", name);
         result = DiscoveryResultBuilder.create(thingUid).withLabel(label).withRepresentationProperty(uuid)
                 .withProperty(VenstarThermostatBindingConstants.PROPERTY_UUID, uuid)
                 .withProperty(VenstarThermostatBindingConstants.PROPERTY_URL, url).build();
-        log.debug("New venstar thermostat discovered with ID=<{}>", uuid);
+        log.trace("New venstar thermostat discovered with ID=<{}>", uuid);
         this.thingDiscovered(result);
     }
 

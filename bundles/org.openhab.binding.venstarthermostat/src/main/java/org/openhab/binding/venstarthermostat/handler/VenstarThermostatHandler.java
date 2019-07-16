@@ -45,6 +45,7 @@ import org.eclipse.jetty.client.api.ContentResponse;
 import org.eclipse.jetty.client.api.Request;
 import org.eclipse.jetty.client.util.DigestAuthentication;
 import org.eclipse.jetty.http.HttpMethod;
+import org.eclipse.jetty.util.ssl.SslContextFactory;
 import org.eclipse.smarthome.config.core.status.ConfigStatusMessage;
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.library.types.QuantityType;
@@ -76,7 +77,7 @@ import com.google.gson.JsonSyntaxException;
  * sent to one of the channels.
  *
  * @author William Welliver - Initial contribution
- * @author Dan Cunningham - Jetty refactor, annotations and various improvements
+ * @author Dan Cunningham - Migration to Jetty, annotations and various improvements
  */
 @NonNullByDefault
 public class VenstarThermostatHandler extends ConfigStatusThingHandler {
@@ -97,11 +98,9 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     // Venstar Thermostats are most commonly installed in the US, so start with a reasonable default.
     private Unit<Temperature> unitSystem = ImperialUnits.FAHRENHEIT;
 
-    public VenstarThermostatHandler(Thing thing, HttpClient httpClient) {
+    public VenstarThermostatHandler(Thing thing) {
         super(thing);
-        // httpClient = new HttpClient(new SslContextFactory(true));
-        this.httpClient = httpClient;
-        httpClient.getSslContextFactory().setTrustAll(true);
+        httpClient = new HttpClient(new SslContextFactory(true));
         log.trace("VenstarThermostatHandler for thing {}", getThing().getUID());
     }
 
@@ -135,16 +134,16 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     public void handleCommand(ChannelUID channelUID, Command command) {
 
         if (getThing().getStatus() != ThingStatus.ONLINE) {
-            log.warn("Controller is NOT ONLINE and is not responding to commands");
+            log.debug("Controller is NOT ONLINE and is not responding to commands");
             return;
         }
 
+        stopUpdateTasks();
         if (command instanceof RefreshType) {
             log.debug("Refresh command requested for " + channelUID);
             stateMap.clear();
             startUpdatesTask(0);
         } else {
-            stopUpdateTasks();
             stateMap.remove(channelUID.getAsString());
             if (channelUID.getId().equals(CHANNEL_HEATING_SETPOINT)) {
                 QuantityType<Temperature> quantity = commandToQuantityType(command, unitSystem);
@@ -171,27 +170,19 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
     @Override
     public void dispose() {
         stopUpdateTasks();
-        // if (httpClient.isStarted()) {
-        // try {
-        // httpClient.stop();
-        // } catch (Exception e) {
-        // log.error("Could not stop HttpClient", e);
-        // }
-        // }
+        if (httpClient.isStarted()) {
+            try {
+                httpClient.stop();
+            } catch (Exception e) {
+                log.error("Could not stop HttpClient", e);
+            }
+        }
     }
 
     @Override
     public void initialize() {
         connect();
     }
-
-    // public void updateUrl(String url) {
-    // Map<String, String> props = editProperties();
-    // props.put(VenstarThermostatBindingConstants.PROPERTY_URL, url);
-    // updateProperties(props);
-    // thingUpdated(getThing());
-    // connect();
-    // }
 
     protected void goOnline() {
         if (getThing().getStatus() != ThingStatus.ONLINE) {
@@ -212,17 +203,17 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         String url = getThing().getProperties().get(PROPERTY_URL);
         try {
             baseURL = new URL(url);
-            // if (!httpClient.isStarted()) {
-            // httpClient.start();
-            // }
+            if (!httpClient.isStarted()) {
+                httpClient.start();
+            }
             httpClient.getAuthenticationStore().clearAuthentications();
             httpClient.getAuthenticationStore().clearAuthenticationResults();
             httpClient.getAuthenticationStore().addAuthentication(
                     new DigestAuthentication(baseURL.toURI(), "thermostat", config.username, config.password));
             refresh = config.refresh;
             startUpdatesTask(0);
-        } catch (MalformedURLException | URISyntaxException e) {
-            log.debug("Invalid URL  " + url, e);
+        } catch (Exception e) {
+            log.debug("Could not conntectto URL  " + url, e);
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, e.getMessage());
         }
     }
@@ -260,12 +251,6 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         if (optSensor.isPresent()) {
             return new QuantityType<Temperature>(optSensor.get().getTemp(), unitSystem);
         }
-        // for (VenstarSensor sensor : sensorData) {
-        // String name = sensor.getName();
-        // if (name.equalsIgnoreCase("Thermostat")) {
-        // return new QuantityType<Temperature>(sensor.getTemp(), unitSystem);
-        // }
-        // }
 
         return UnDefType.UNDEF;
     }
@@ -276,12 +261,6 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         if (optSensor.isPresent()) {
             return new QuantityType<Dimensionless>(optSensor.get().getHum(), SmartHomeUnits.PERCENT);
         }
-        // for (VenstarSensor sensor : sensorData) {
-        // String name = sensor.getName();
-        // if (name.equalsIgnoreCase("Thermostat")) {
-        // return new QuantityType<Dimensionless>(sensor.getHum(), SmartHomeUnits.PERCENT);
-        // }
-        // }
 
         return UnDefType.UNDEF;
     }
@@ -292,12 +271,7 @@ public class VenstarThermostatHandler extends ConfigStatusThingHandler {
         if (optSensor.isPresent()) {
             return new QuantityType<Temperature>(optSensor.get().getTemp(), unitSystem);
         }
-        // for (VenstarSensor sensor : sensorData) {
-        // String name = sensor.getName();
-        // if (name.equalsIgnoreCase("Outdoor")) {
-        // return new QuantityType<Temperature>(sensor.getTemp(), unitSystem);
-        // }
-        // }
+
         return UnDefType.UNDEF;
     }
 
