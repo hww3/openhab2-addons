@@ -1,14 +1,10 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.tplinksmarthome.internal;
 
@@ -28,12 +24,13 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mock;
+import org.openhab.binding.tplinksmarthome.TPLinkSmartHomeBindingConstants;
+import org.openhab.binding.tplinksmarthome.handler.SmartHomeHandler;
 import org.openhab.binding.tplinksmarthome.internal.device.BulbDevice;
 import org.openhab.binding.tplinksmarthome.internal.device.DimmerDevice;
 import org.openhab.binding.tplinksmarthome.internal.device.EnergySwitchDevice;
 import org.openhab.binding.tplinksmarthome.internal.device.RangeExtenderDevice;
 import org.openhab.binding.tplinksmarthome.internal.device.SwitchDevice;
-import org.openhab.binding.tplinksmarthome.internal.handler.SmartHomeHandler;
 
 /**
  * Test class for {@link TPLinkSmartHomeHandlerFactory}.
@@ -57,9 +54,6 @@ public class TPLinkSmartHomeHandlerFactoryTest {
             { "lb120", BulbDevice.class },
             { "lb130", BulbDevice.class },
             { "lb230", BulbDevice.class },
-            { "kl110", BulbDevice.class },
-            { "kl120", BulbDevice.class },
-            { "kl130", BulbDevice.class },
             { "re270", RangeExtenderDevice.class },
             { "unknown", null },
     });

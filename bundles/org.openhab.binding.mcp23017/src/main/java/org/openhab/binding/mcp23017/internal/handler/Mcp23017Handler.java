@@ -1,18 +1,14 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.mcp23017.internal.handler;
+package org.openhab.binding.mcp23017.handler;
 
-import static org.openhab.binding.mcp23017.internal.Mcp23017BindingConstants.*;
+import static org.openhab.binding.mcp23017.Mcp23017BindingConstants.*;
 
 import java.io.IOException;
 
@@ -61,7 +57,13 @@ public class Mcp23017Handler extends BaseThingHandler implements GpioPinListener
 
     public Mcp23017Handler(Thing thing) {
         super(thing);
+    }
 
+    @Override
+    public void initialize() {
+        checkConfiguration();
+        mcpProvider = initializeMcpProvider();
+        pinStateHolder = new Mcp23017PinStateHolder(mcpProvider, this.thing);
     }
 
     @Override
@@ -86,19 +88,6 @@ public class Mcp23017Handler extends BaseThingHandler implements GpioPinListener
         }
     }
 
-    @Override
-    public void initialize() {
-        try {
-            checkConfiguration();
-            mcpProvider = initializeMcpProvider();
-            pinStateHolder = new Mcp23017PinStateHolder(mcpProvider, this.thing);
-            updateStatus(ThingStatus.ONLINE);
-        } catch (IllegalArgumentException | SecurityException e) {
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
-                    "An exception occurred while adding pin. Check pin configuration. Exception: " + e.getMessage());
-        }
-    }
-
     private boolean verifyChannel(ChannelUID channelUID) {
         if (!isChannelGroupValid(channelUID) || !isChannelValid(channelUID)) {
             logger.warn("Channel group or channel is invalid. Probably configuration problem");
@@ -108,16 +97,12 @@ public class Mcp23017Handler extends BaseThingHandler implements GpioPinListener
     }
 
     private void handleOutputCommand(ChannelUID channelUID, Command command) {
-        if (command instanceof OnOffType) {
-            GpioPinDigitalOutput outputPin = pinStateHolder.getOutputPin(channelUID);
-            Configuration configuration = this.getThing().getChannel(channelUID.getId()).getConfiguration();
-
-            // invertLogic is null if not configured
-            boolean activeLowFlag = ACTIVE_LOW_ENABLED.equalsIgnoreCase(configuration.get(ACTIVE_LOW).toString());
-            PinState pinState = command == OnOffType.ON ^ activeLowFlag ? PinState.HIGH : PinState.LOW;
-            logger.debug("got output pin {} for channel {} and command {} [active_low={}, new_state={}]", outputPin,
-                    channelUID, command, activeLowFlag, pinState);
-            GPIODataHolder.GPIO.setState(pinState, outputPin);
+        GpioPinDigitalOutput outputPin = pinStateHolder.getOutputPin(channelUID);
+        logger.debug("got output pin {} for channel {} and command {}", outputPin, channelUID, command);
+        if (OnOffType.ON == command) {
+            GPIODataHolder.GPIO.setState(PinState.HIGH, outputPin);
+        } else if (OnOffType.OFF == command) {
+            GPIODataHolder.GPIO.setState(PinState.LOW, outputPin);
         }
     }
 
@@ -146,6 +131,12 @@ public class Mcp23017Handler extends BaseThingHandler implements GpioPinListener
         Configuration configuration = getConfig();
         address = Integer.parseInt((configuration.get(ADDRESS)).toString(), 16);
         busNumber = Integer.parseInt((configuration.get(BUS_NUMBER)).toString());
+        try {
+            updateStatus(ThingStatus.ONLINE);
+        } catch (IllegalArgumentException | SecurityException e) {
+            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                    "An exception occurred while adding pin. Check pin configuration. Exception: " + e.getMessage());
+        }
     }
 
     private MCP23017GpioProvider initializeMcpProvider() {
@@ -167,7 +158,7 @@ public class Mcp23017Handler extends BaseThingHandler implements GpioPinListener
         Pin pin = PinMapper.get(channel.getIdWithoutGroup());
 
         String pullMode = DEFAULT_PULL_MODE;
-        if (thing.getChannel(channel.getId()) != null) {
+        if (thing.getChannel(channel.getId ()) != null) {
             Configuration configuration = thing.getChannel(channel.getId()).getConfiguration();
             pullMode = ((String) configuration.get(PULL_MODE)) != null ? ((String) configuration.get(PULL_MODE))
                     : DEFAULT_PULL_MODE;
@@ -201,22 +192,18 @@ public class Mcp23017Handler extends BaseThingHandler implements GpioPinListener
 
     @Override
     public void channelLinked(ChannelUID channelUID) {
-        synchronized (this) {
-            logger.debug("channel linked {}", channelUID.getAsString());
-            if (!verifyChannel(channelUID)) {
-                return;
-            }
-            String channelGroup = channelUID.getGroupId();
-
-            if (channelGroup != null && channelGroup.equals(CHANNEL_GROUP_INPUT)) {
-                if (pinStateHolder.getInputPin(channelUID) != null) {
-                    return;
-                }
-                GpioPinDigitalInput inputPin = initializeInputPin(channelUID);
-                pinStateHolder.addInputPin(inputPin, channelUID);
-
-            }
-            super.channelLinked(channelUID);
+        logger.debug("channel linked {}", channelUID.getAsString());
+        if (!verifyChannel(channelUID)) {
+            return;
         }
+        String channelGroup = channelUID.getGroupId();
+
+        if (channelGroup.equals(CHANNEL_GROUP_INPUT)) {
+            GpioPinDigitalInput inputPin = initializeInputPin(channelUID);
+            pinStateHolder.addInputPin(inputPin, channelUID);
+
+        }
+        super.channelLinked(channelUID);
     }
+
 }

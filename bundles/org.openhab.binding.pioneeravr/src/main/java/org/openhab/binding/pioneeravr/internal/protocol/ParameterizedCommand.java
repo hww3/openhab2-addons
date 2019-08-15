@@ -1,26 +1,21 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.pioneeravr.internal.protocol;
 
 import org.apache.commons.lang.StringUtils;
-import org.openhab.binding.pioneeravr.internal.protocol.avr.AvrCommand;
-import org.openhab.binding.pioneeravr.internal.protocol.avr.AvrConnectionException;
+import org.openhab.binding.pioneeravr.protocol.AvrCommand;
+import org.openhab.binding.pioneeravr.protocol.AvrConnectionException;
 
 /**
  * A command which accept a parameter.
  *
  * @author Antoine Besnard - Initial contribution
- * @author Leroy Foerster - Listening Mode, Playing Listening Mode
  */
 public class ParameterizedCommand extends SimpleCommand {
 
@@ -30,8 +25,7 @@ public class ParameterizedCommand extends SimpleCommand {
     public enum ParameterizedCommandType implements AvrCommand.CommandType {
 
         VOLUME_SET("[0-9]{2,3}", "VL", "ZV", "YV", "HZV"),
-        INPUT_CHANNEL_SET("[0-9]{2}", "FN", "ZS", "ZT", "ZEA"),
-        LISTENING_MODE_SET("[0-9]{4}", "SR");
+        INPUT_CHANNEL_SET("[0-9]{2}", "FN", "ZS", "ZT", "ZEA");
 
         private String[] zoneCommands;
         private String parameterPattern;

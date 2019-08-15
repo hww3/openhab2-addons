@@ -1,21 +1,16 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.vitotronic.internal.handler;
+package org.openhab.binding.vitotronic.handler;
 
 import org.eclipse.smarthome.core.library.types.DateTimeType;
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.library.types.OnOffType;
-import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.thing.Bridge;
 import org.eclipse.smarthome.core.thing.Channel;
 import org.eclipse.smarthome.core.thing.ChannelUID;
@@ -36,9 +31,9 @@ import org.slf4j.LoggerFactory;
 
 public class VitotronicThingHandler extends BaseThingHandler {
 
-    private final Logger logger = LoggerFactory.getLogger(VitotronicThingHandler.class);
+    private Logger logger = LoggerFactory.getLogger(VitotronicThingHandler.class);
 
-    private VitotronicBridgeHandler bridgeHandler;
+    VitotronicBridgeHandler bridgeHandler;
 
     public VitotronicThingHandler(Thing thing) {
         super(thing);
@@ -59,8 +54,9 @@ public class VitotronicThingHandler extends BaseThingHandler {
 
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
-        logger.trace("Handle command for channel '{}' command '{}'", channelUID.getId(), command);
+        logger.trace("Handle command for channel '{}' command '{}'", channelUID.getId(), command.toString());
         bridgeHandler.updateChannel(getThing().getUID().getId(), channelUID.getId(), command.toString());
+
     }
 
     @Override
@@ -69,9 +65,10 @@ public class VitotronicThingHandler extends BaseThingHandler {
     }
 
     private synchronized VitotronicBridgeHandler getBridgeHandler() {
+
         Bridge bridge = getBridge();
         if (bridge == null) {
-            logger.debug("Required bridge not defined for device {}.", getThing().getUID());
+            logger.debug("Required bridge not defined for device {}.");
             return null;
         } else {
             return getBridgeHandler(bridge);
@@ -80,6 +77,7 @@ public class VitotronicThingHandler extends BaseThingHandler {
     }
 
     private synchronized VitotronicBridgeHandler getBridgeHandler(Bridge bridge) {
+
         VitotronicBridgeHandler bridgeHandler = null;
 
         ThingHandler handler = bridge.getHandler();
@@ -120,9 +118,6 @@ public class VitotronicThingHandler extends BaseThingHandler {
         switch (channel.getAcceptedItemType()) {
             case "Number":
                 this.updateState(channelId, new DecimalType(value));
-                break;
-            case "String":
-                this.updateState(channelId, new StringType(value));
                 break;
             case "Switch":
                 if (value.toUpperCase().contains("ON")) {

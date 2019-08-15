@@ -1,18 +1,14 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.avmfritz.internal.ahamodel;
 
-import static org.openhab.binding.avmfritz.internal.BindingConstants.*;
+import static org.openhab.binding.avmfritz.BindingConstants.*;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -23,15 +19,13 @@ import javax.xml.bind.annotation.XmlType;
 import org.apache.commons.lang.builder.ToStringBuilder;
 
 /**
- * See {@link DeviceListModel}.
+ * See {@link DevicelistModel}.
  *
- * @author Christoph Weitkamp - Initial contribution
  * @author Christoph Weitkamp - Added support for AVM FRITZ!DECT 300 and Comet DECT
- * @author Christoph Weitkamp - Added channel 'battery_level'
  */
 @XmlRootElement(name = "hkr")
 @XmlType(propOrder = { "tist", "tsoll", "absenk", "komfort", "lock", "devicelock", "errorcode", "batterylow",
-        "windowopenactiv", "battery", "nextchange", "summeractive", "holidayactive" })
+        "nextchange" })
 public class HeatingModel {
     public static final BigDecimal TEMP_FACTOR = new BigDecimal("0.5");
     public static final BigDecimal BIG_DECIMAL_TWO = new BigDecimal("2.0");
@@ -53,11 +47,7 @@ public class HeatingModel {
     private BigDecimal devicelock;
     private String errorcode;
     private BigDecimal batterylow;
-    private BigDecimal windowopenactiv;
-    private BigDecimal battery;
-    private NextChangeModel nextchange;
-    private BigDecimal summeractive;
-    private BigDecimal holidayactive;
+    private Nextchange nextchange;
 
     public BigDecimal getTist() {
         return tist;
@@ -92,9 +82,7 @@ public class HeatingModel {
     }
 
     public String getMode() {
-        if (getHolidayactive() != null && BigDecimal.ONE.equals(getHolidayactive())) {
-            return MODE_VACATION;
-        } else if (getNextchange() != null && getNextchange().getEndperiod() != 0) {
+        if (getNextchange() != null && getNextchange().getEndperiod() != 0) {
             return MODE_AUTO;
         } else {
             return MODE_MANUAL;
@@ -108,8 +96,6 @@ public class HeatingModel {
             return MODE_ON;
         } else if (TEMP_FRITZ_OFF.compareTo(tsoll) == 0) {
             return MODE_OFF;
-        } else if (getWindowopenactiv() != null && BigDecimal.ONE.equals(getWindowopenactiv())) {
-            return MODE_WINDOW_OPEN;
         } else if (tsoll.compareTo(komfort) == 0) {
             return MODE_COMFORT;
         } else if (tsoll.compareTo(absenk) == 0) {
@@ -153,44 +139,12 @@ public class HeatingModel {
         this.batterylow = batterylow;
     }
 
-    public BigDecimal getWindowopenactiv() {
-        return windowopenactiv;
-    }
-
-    public void setWindowopenactiv(BigDecimal windowopenactiv) {
-        this.windowopenactiv = windowopenactiv;
-    }
-
-    public BigDecimal getBattery() {
-        return battery;
-    }
-
-    public void setBattery(BigDecimal battery) {
-        this.battery = battery;
-    }
-
-    public NextChangeModel getNextchange() {
+    public Nextchange getNextchange() {
         return nextchange;
     }
 
-    public void setNextchange(NextChangeModel nextchange) {
+    public void setNextchange(Nextchange nextchange) {
         this.nextchange = nextchange;
-    }
-
-    public BigDecimal getSummeractive() {
-        return summeractive;
-    }
-
-    public void setSummeractive(BigDecimal summeractive) {
-        this.summeractive = summeractive;
-    }
-
-    public BigDecimal getHolidayactive() {
-        return holidayactive;
-    }
-
-    public void setHolidayactive(BigDecimal holidayactive) {
-        this.holidayactive = holidayactive;
     }
 
     @Override
@@ -198,9 +152,7 @@ public class HeatingModel {
         return new ToStringBuilder(this).append("tist", getTist()).append("tsoll", getTsoll())
                 .append("absenk", getAbsenk()).append("komfort", getKomfort()).append("lock", getLock())
                 .append("devicelock", getDevicelock()).append("errorcode", getErrorcode())
-                .append("batterylow", getBatterylow()).append("windowopenactiv", getWindowopenactiv())
-                .append("battery", getBattery()).append("nextchange", getNextchange())
-                .append("summeractive", getSummeractive()).append("holidayactive", getHolidayactive()).toString();
+                .append("batterylow", getBatterylow()).append("nextchange", getNextchange()).toString();
     }
 
     /**
@@ -254,7 +206,7 @@ public class HeatingModel {
     }
 
     @XmlType(propOrder = { "endperiod", "tchange" })
-    public static class NextChangeModel {
+    public static class Nextchange {
         private int endperiod;
         private BigDecimal tchange;
 

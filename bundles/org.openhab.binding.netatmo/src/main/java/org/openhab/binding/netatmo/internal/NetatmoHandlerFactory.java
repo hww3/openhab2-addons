@@ -1,18 +1,14 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.netatmo.internal;
 
-import static org.openhab.binding.netatmo.internal.NetatmoBindingConstants.*;
+import static org.openhab.binding.netatmo.NetatmoBindingConstants.*;
 
 import java.util.HashMap;
 import java.util.Hashtable;
@@ -29,8 +25,8 @@ import org.eclipse.smarthome.core.thing.ThingUID;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandlerFactory;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandlerFactory;
+import org.openhab.binding.netatmo.handler.NetatmoBridgeHandler;
 import org.openhab.binding.netatmo.internal.discovery.NetatmoModuleDiscoveryService;
-import org.openhab.binding.netatmo.internal.handler.NetatmoBridgeHandler;
 import org.openhab.binding.netatmo.internal.homecoach.NAHealthyHomeCoachHandler;
 import org.openhab.binding.netatmo.internal.station.NAMainHandler;
 import org.openhab.binding.netatmo.internal.station.NAModule1Handler;
@@ -57,7 +53,8 @@ import org.slf4j.LoggerFactory;
  * @author Gaël L'hopital - Initial contribution
  */
 
-@Component(service = ThingHandlerFactory.class, configurationPid = "binding.netatmo")
+@Component(service = { ThingHandlerFactory.class,
+        NetatmoHandlerFactory.class }, immediate = true, configurationPid = "binding.netatmo")
 public class NetatmoHandlerFactory extends BaseThingHandlerFactory {
     private Logger logger = LoggerFactory.getLogger(NetatmoHandlerFactory.class);
     private Map<ThingUID, ServiceRegistration<?>> discoveryServiceRegs = new HashMap<>();
@@ -113,9 +110,10 @@ public class NetatmoHandlerFactory extends BaseThingHandlerFactory {
             unregisterDeviceDiscoveryService(thingUID);
             unregisterWebHookServlet(thingUID);
         }
+        super.removeHandler(thingHandler);
     }
 
-    private synchronized void registerDeviceDiscoveryService(@NonNull NetatmoBridgeHandler netatmoBridgeHandler) {
+    private void registerDeviceDiscoveryService(@NonNull NetatmoBridgeHandler netatmoBridgeHandler) {
         if (bundleContext != null) {
             NetatmoModuleDiscoveryService discoveryService = new NetatmoModuleDiscoveryService(netatmoBridgeHandler);
             discoveryService.activate(null);
@@ -124,19 +122,18 @@ public class NetatmoHandlerFactory extends BaseThingHandlerFactory {
         }
     }
 
-    private synchronized void unregisterDeviceDiscoveryService(ThingUID thingUID) {
-        ServiceRegistration<?> serviceReg = discoveryServiceRegs.remove(thingUID);
+    private void unregisterDeviceDiscoveryService(ThingUID thingUID) {
+        ServiceRegistration<?> serviceReg = discoveryServiceRegs.get(thingUID);
         if (serviceReg != null) {
             NetatmoModuleDiscoveryService service = (NetatmoModuleDiscoveryService) bundleContext
                     .getService(serviceReg.getReference());
+            service.deactivate();
             serviceReg.unregister();
-            if (service != null) {
-                service.deactivate();
-            }
+            discoveryServiceRegs.remove(thingUID);
         }
     }
 
-    private synchronized WelcomeWebHookServlet registerWebHookServlet(ThingUID thingUID) {
+    private WelcomeWebHookServlet registerWebHookServlet(ThingUID thingUID) {
         WelcomeWebHookServlet servlet = null;
         if (bundleContext != null) {
             servlet = new WelcomeWebHookServlet(httpService, thingUID.getId());
@@ -146,10 +143,11 @@ public class NetatmoHandlerFactory extends BaseThingHandlerFactory {
         return servlet;
     }
 
-    private synchronized void unregisterWebHookServlet(ThingUID thingUID) {
-        ServiceRegistration<?> serviceReg = webHookServiceRegs.remove(thingUID);
+    private void unregisterWebHookServlet(ThingUID thingUID) {
+        ServiceRegistration<?> serviceReg = webHookServiceRegs.get(thingUID);
         if (serviceReg != null) {
             serviceReg.unregister();
+            webHookServiceRegs.remove(thingUID);
         }
     }
 

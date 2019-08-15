@@ -1,16 +1,12 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.onkyo.internal;
+package org.openhab.binding.kodi.internal;
 
 import java.util.List;
 import java.util.Locale;
@@ -23,21 +19,19 @@ import org.eclipse.smarthome.core.thing.Channel;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.type.DynamicStateDescriptionProvider;
 import org.eclipse.smarthome.core.types.StateDescription;
-import org.eclipse.smarthome.core.types.StateDescriptionFragmentBuilder;
 import org.eclipse.smarthome.core.types.StateOption;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Deactivate;
 
 /**
- * The {@link OnkyoStateDescriptionProvider} class is a dynamic provider of state options while leaving other state
- * description fields as original.
+ * Dynamic provider of state options while leaving other state description fields as original.
  *
  * @author Gregory Moyer - Initial contribution
- * @author Stewart Cossey - Adapted for Onkyo Binding
+ * @author Christoph Weitkamp - Adapted to Kodi binding
  */
-@Component(service = { DynamicStateDescriptionProvider.class, OnkyoStateDescriptionProvider.class })
+@Component(service = { DynamicStateDescriptionProvider.class, KodiDynamicStateDescriptionProvider.class })
 @NonNullByDefault
-public class OnkyoStateDescriptionProvider implements DynamicStateDescriptionProvider {
+public class KodiDynamicStateDescriptionProvider implements DynamicStateDescriptionProvider {
     private final Map<ChannelUID, @Nullable List<StateOption>> channelOptionsMap = new ConcurrentHashMap<>();
 
     public void setStateOptions(ChannelUID channelUID, List<StateOption> options) {
@@ -52,8 +46,11 @@ public class OnkyoStateDescriptionProvider implements DynamicStateDescriptionPro
             return null;
         }
 
-        StateDescriptionFragmentBuilder builder = (original == null) ? StateDescriptionFragmentBuilder.create() : StateDescriptionFragmentBuilder.create(original);
-        return builder.withOptions(options).build().toStateDescription();
+        if (original != null) {
+            return new StateDescription(original.getMinimum(), original.getMaximum(), original.getStep(),
+                    original.getPattern(), original.isReadOnly(), options);
+        }
+        return new StateDescription(null, null, null, null, false, options);
     }
 
     @Deactivate

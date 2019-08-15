@@ -1,18 +1,14 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.homematic.internal.handler;
+package org.openhab.binding.homematic.handler;
 
-import static org.openhab.binding.homematic.internal.HomematicBindingConstants.*;
+import static org.openhab.binding.homematic.HomematicBindingConstants.*;
 import static org.openhab.binding.homematic.internal.misc.HomematicConstants.*;
 
 import java.io.IOException;
@@ -39,12 +35,10 @@ import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
-import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.thing.binding.builder.ChannelBuilder;
 import org.eclipse.smarthome.core.types.Command;
 import org.eclipse.smarthome.core.types.RefreshType;
 import org.eclipse.smarthome.core.types.State;
-import org.openhab.binding.homematic.internal.HomematicBindingConstants;
 import org.openhab.binding.homematic.internal.common.HomematicConfig;
 import org.openhab.binding.homematic.internal.communicator.HomematicGateway;
 import org.openhab.binding.homematic.internal.converter.ConverterException;
@@ -71,7 +65,7 @@ import org.slf4j.LoggerFactory;
  * @author Gerhard Riegler - Initial contribution
  */
 public class HomematicThingHandler extends BaseThingHandler {
-    private final Logger logger = LoggerFactory.getLogger(HomematicThingHandler.class);
+    private Logger logger = LoggerFactory.getLogger(HomematicThingHandler.class);
     private Future<?> initFuture;
     private final Object initLock = new Object();
     private volatile boolean deviceDeletionPending = false;
@@ -96,17 +90,16 @@ public class HomematicThingHandler extends BaseThingHandler {
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, ex.getMessage());
             } catch (IOException ex) {
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, ex.getMessage());
-            } catch (GatewayNotAvailableException ex) {
-                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.BRIDGE_OFFLINE, ex.getMessage());
+            } catch (BridgeHandlerNotAvailableException ex) {
+                // ignore
             } catch (Exception ex) {
                 logger.error("{}", ex.getMessage(), ex);
-                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.NONE, ex.getMessage());
             }
         });
     }
 
     private void doInitializeInBackground()
-            throws GatewayNotAvailableException, HomematicClientException, IOException {
+            throws BridgeHandlerNotAvailableException, HomematicClientException, IOException {
         HomematicGateway gateway = getHomematicGateway();
         HmDevice device = gateway.getDevice(UidUtils.getHomematicAddress(getThing()));
         HmChannel channelZero = device.getChannel(0);
@@ -262,7 +255,7 @@ public class HomematicThingHandler extends BaseThingHandler {
                 dpInfo = new HmDatapointInfo(dpInfo.getAddress(), HmParamsetType.VALUES, 0,
                         VIRTUAL_DATAPOINT_NAME_RELOAD_FROM_GATEWAY);
                 dp = gateway.getDatapoint(dpInfo);
-                sendDatapoint(dp, new HmDatapointConfig(), Boolean.TRUE);
+                gateway.sendDatapoint(dp, new HmDatapointConfig(), Boolean.TRUE);
             } else {
                 Channel channel = getThing().getChannel(channelUID.getId());
                 if (channel == null) {
@@ -280,11 +273,11 @@ public class HomematicThingHandler extends BaseThingHandler {
                         TypeConverter<?> converter = ConverterFactory.createConverter(channel.getAcceptedItemType());
                         Object newValue = converter.convertToBinding(command, dp);
                         HmDatapointConfig config = getChannelConfig(channel, dp);
-                        sendDatapoint(dp, config, newValue);
+                        gateway.sendDatapoint(dp, config, newValue);
                     }
                 }
             }
-        } catch (HomematicClientException | GatewayNotAvailableException ex) {
+        } catch (HomematicClientException | BridgeHandlerNotAvailableException ex) {
             logger.warn("{}", ex.getMessage());
         } catch (IOException ex) {
             if (dp != null && dp.getChannel().getDevice().isOffline()) {
@@ -301,32 +294,11 @@ public class HomematicThingHandler extends BaseThingHandler {
         }
     }
 
-    private void sendDatapoint(HmDatapoint dp, HmDatapointConfig config, Object newValue)
-            throws IOException, HomematicClientException, GatewayNotAvailableException {
-        String rxMode = getRxModeForDatapointTransmission(dp.getName(), dp.getValue(), newValue);
-        getHomematicGateway().sendDatapoint(dp, config, newValue, rxMode);
-    }
-
-    /**
-     * Returns the rx mode that shall be used for transmitting a new value of a datapoint to the device. The
-     * HomematicThingHandler always uses the default rx mode; custom thing handlers can override this method to
-     * adjust the rx mode.
-     * 
-     * @param datapointName The datapoint that will be updated on the device
-     * @param currentValue The current value of the datapoint
-     * @param newValue The value that will be sent to the device
-     * @return The rxMode ({@link HomematicBindingConstants#RX_BURST_MODE "BURST"} for burst mode,
-     *         {@link HomematicBindingConstants#RX_WAKEUP_MODE "WAKEUP"} for wakeup mode, or null for the default mode)
-     */
-    protected String getRxModeForDatapointTransmission(String datapointName, Object currentValue, Object newValue) {
-        return null;
-    }
-
     /**
      * Evaluates the channel and datapoint for this channelUID and updates the state of the channel.
      */
     private void updateChannelState(ChannelUID channelUID)
-            throws GatewayNotAvailableException, HomematicClientException, IOException, ConverterException {
+            throws BridgeHandlerNotAvailableException, HomematicClientException, IOException, ConverterException {
         HomematicGateway gateway = getHomematicGateway();
         HmDatapointInfo dpInfo = UidUtils.createHmDatapointInfo(channelUID);
         HmDatapoint dp = gateway.getDatapoint(dpInfo);
@@ -339,8 +311,9 @@ public class HomematicThingHandler extends BaseThingHandler {
      */
     protected void updateDatapointState(HmDatapoint dp) {
         try {
-            updateStatus(dp.getChannel().getDevice());
-
+            if (HomematicTypeGeneratorImpl.isStatusDatapoint(dp)) {
+                updateStatus(dp.getChannel().getDevice());
+            }
             if (dp.getParamsetType() == HmParamsetType.MASTER) {
                 // update configuration
                 Configuration config = editConfiguration();
@@ -356,7 +329,7 @@ public class HomematicThingHandler extends BaseThingHandler {
                     logger.warn("Channel not found for datapoint '{}'", new HmDatapointInfo(dp));
                 }
             }
-        } catch (GatewayNotAvailableException ex) {
+        } catch (BridgeHandlerNotAvailableException ex) {
             // ignore
         } catch (Exception ex) {
             logger.error("{}", ex.getMessage(), ex);
@@ -367,7 +340,7 @@ public class HomematicThingHandler extends BaseThingHandler {
      * Converts the value of the datapoint to a State, updates the channel and also sets the thing status if necessary.
      */
     private void updateChannelState(final HmDatapoint dp, Channel channel)
-            throws IOException, GatewayNotAvailableException, ConverterException {
+            throws IOException, BridgeHandlerNotAvailableException, ConverterException {
 
         if (dp.isTrigger()) {
             if (dp.getValue() != null) {
@@ -390,7 +363,7 @@ public class HomematicThingHandler extends BaseThingHandler {
      * Loads all values for the given Homematic channel if it is not initialized.
      */
     private void loadHomematicChannelValues(HmChannel hmChannel)
-            throws GatewayNotAvailableException, IOException {
+            throws BridgeHandlerNotAvailableException, IOException {
         if (!hmChannel.isInitialized()) {
             synchronized (this) {
                 if (!hmChannel.isInitialized()) {
@@ -412,17 +385,14 @@ public class HomematicThingHandler extends BaseThingHandler {
     /**
      * Updates the thing status based on device status.
      */
-    private void updateStatus(HmDevice device) throws GatewayNotAvailableException, IOException {
+    private void updateStatus(HmDevice device) throws BridgeHandlerNotAvailableException, IOException {
         loadHomematicChannelValues(device.getChannel(0));
 
         ThingStatus oldStatus = thing.getStatus();
         ThingStatus newStatus = ThingStatus.ONLINE;
         ThingStatusDetail newDetail = ThingStatusDetail.NONE;
 
-        if (getBridge().getStatus() == ThingStatus.OFFLINE) {
-            newStatus = ThingStatus.OFFLINE;
-            newDetail = ThingStatusDetail.BRIDGE_OFFLINE;
-        } else if (device.isFirmwareUpdating()) {
+        if (device.isFirmwareUpdating()) {
             newStatus = ThingStatus.OFFLINE;
             newDetail = ThingStatusDetail.FIRMWARE_UPDATING;
         } else if (device.isUnreach()) {
@@ -466,30 +436,31 @@ public class HomematicThingHandler extends BaseThingHandler {
     /**
      * Returns the Homematic gateway if the bridge is available.
      */
-    private HomematicGateway getHomematicGateway() throws GatewayNotAvailableException {
+    private HomematicGateway getHomematicGateway() throws BridgeHandlerNotAvailableException {
         final Bridge bridge = getBridge();
-        if (bridge != null) {
-            HomematicBridgeHandler bridgeHandler = (HomematicBridgeHandler) bridge.getHandler();
-            if (bridgeHandler != null && bridgeHandler.getGateway() != null) {
-                return bridgeHandler.getGateway();
+        if (bridge == null || bridge.getHandler() == null
+                || ((HomematicBridgeHandler) bridge.getHandler()).getGateway() == null) {
+            if (thing.getStatus() != ThingStatus.INITIALIZING) {
+                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.HANDLER_MISSING_ERROR);
             }
+            throw new BridgeHandlerNotAvailableException("BridgeHandler not yet available!");
         }
 
-        throw new GatewayNotAvailableException("HomematicGateway not yet available!");
+        return ((HomematicBridgeHandler) bridge.getHandler()).getGateway();
     }
 
     @Override
     public void handleConfigurationUpdate(Map<String, Object> configurationParameters)
             throws ConfigValidationException {
-        super.handleConfigurationUpdate(configurationParameters);
+        validateConfigurationParameters(configurationParameters);
 
         try {
             HomematicGateway gateway = getHomematicGateway();
             HmDevice device = gateway.getDevice(UidUtils.getHomematicAddress(getThing()));
 
-            for (Entry<String, Object> configurationParameter : configurationParameters.entrySet()) {
-                String key = configurationParameter.getKey();
-                Object newValue = configurationParameter.getValue();
+            for (Entry<String, Object> configurationParmeter : configurationParameters.entrySet()) {
+                String key = configurationParmeter.getKey();
+                Object newValue = configurationParmeter.getValue();
 
                 if (key.startsWith("HMP_")) {
                     key = StringUtils.removeStart(key, "HMP_");
@@ -513,7 +484,7 @@ public class HomematicThingHandler extends BaseThingHandler {
                                 }
                                 if (ObjectUtils.notEqual(dp.isEnumType() ? dp.getOptionValue() : dp.getValue(),
                                         newValue)) {
-                                    sendDatapoint(dp, new HmDatapointConfig(), newValue);
+                                    gateway.sendDatapoint(dp, new HmDatapointConfig(), newValue);
                                 }
                             }
                         } catch (IOException ex) {
@@ -525,30 +496,18 @@ public class HomematicThingHandler extends BaseThingHandler {
                 }
             }
             gateway.triggerDeviceValuesReload(device);
-        } catch (HomematicClientException | GatewayNotAvailableException ex) {
+        } catch (HomematicClientException | BridgeHandlerNotAvailableException ex) {
             logger.error("Error setting thing properties: {}", ex.getMessage(), ex);
         }
     }
 
-    @SuppressWarnings("null")
     @Override
     public synchronized void handleRemoval() {
-        final Bridge bridge;
-        final ThingHandler handler;
-
-        if ((bridge = getBridge()) == null || (handler = bridge.getHandler()) == null) {
-            super.handleRemoval();
-            return;
-        }
-
-        final HomematicConfig config = bridge.getConfiguration().as(HomematicConfig.class);
-        final boolean factoryResetOnDeletion = config.isFactoryResetOnDeletion();
-        final boolean unpairOnDeletion = factoryResetOnDeletion || config.isUnpairOnDeletion();
-
-        if (unpairOnDeletion) {
+        final Bridge bridge = getBridge();
+        if (bridge != null && bridge.getConfiguration().as(HomematicConfig.class).isUnpairOnDeletion()) {
             deviceDeletionPending = true;
-            ((HomematicBridgeHandler) handler).deleteFromGateway(UidUtils.getHomematicAddress(thing),
-                    factoryResetOnDeletion, false, true);
+            ((HomematicBridgeHandler) bridge.getHandler()).deleteFromGateway(UidUtils.getHomematicAddress(thing), false,
+                    false, true);
         } else {
             super.handleRemoval();
         }
@@ -571,13 +530,13 @@ public class HomematicThingHandler extends BaseThingHandler {
     /**
      * Called by the bridgeHandler when the device for this thing has been added to the gateway.
      * This is used to reconnect a device that was previously unpaired.
-     *
+     * 
      * @param device The device that has been added to the gateway
      */
     public void deviceLoaded(HmDevice device) {
         try {
             updateStatus(device);
-        } catch (GatewayNotAvailableException ex) {
+        } catch (BridgeHandlerNotAvailableException ex) {
             // ignore
         } catch (IOException ex) {
             logger.warn("Could not reinitialize the device '{}': {}", device.getAddress(), ex.getMessage(), ex);
@@ -586,7 +545,7 @@ public class HomematicThingHandler extends BaseThingHandler {
 
     /**
      * Returns whether the device deletion is pending.
-     *
+     * 
      * @return true, if the deletion of this device on its gateway has been triggered but has not yet completed
      */
     public synchronized boolean isDeletionPending() {

@@ -1,14 +1,10 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.pioneeravr.internal.discovery;
 
@@ -24,12 +20,15 @@ import org.eclipse.smarthome.config.discovery.upnp.UpnpDiscoveryParticipant;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
 import org.eclipse.smarthome.core.thing.ThingUID;
 import org.jupnp.model.meta.RemoteDevice;
-import org.openhab.binding.pioneeravr.internal.PioneerAvrBindingConstants;
+import org.openhab.binding.pioneeravr.PioneerAvrBindingConstants;
 import org.osgi.service.component.ComponentContext;
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Predicate;
+import com.google.common.collect.Collections2;
 
 /**
  * An UpnpDiscoveryParticipant which allows to discover Pioneer AVRs.
@@ -138,7 +137,12 @@ public class PioneerAvrDiscoveryParticipant implements UpnpDiscoveryParticipant 
      * @return
      */
     private boolean isSupportedDeviceModel(String deviceModel, Set<String> supportedDeviceModels) {
-        return StringUtils.isNotBlank(deviceModel) && supportedDeviceModels.stream()
-                .anyMatch(input -> StringUtils.startsWithIgnoreCase(deviceModel, input));
+        return StringUtils.isNotBlank(deviceModel)
+                && !Collections2.filter(supportedDeviceModels, new Predicate<String>() {
+                    @Override
+                    public boolean apply(String input) {
+                        return StringUtils.startsWithIgnoreCase(deviceModel, input);
+                    }
+                }).isEmpty();
     }
 }

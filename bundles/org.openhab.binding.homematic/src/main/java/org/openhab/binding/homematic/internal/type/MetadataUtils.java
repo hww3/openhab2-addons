@@ -16,6 +16,7 @@ import static org.openhab.binding.homematic.internal.HomematicBindingConstants.*
 import static org.openhab.binding.homematic.internal.misc.HomematicConstants.*;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;

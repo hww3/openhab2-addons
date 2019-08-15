@@ -1,18 +1,12 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.denonmarantz.internal.connector;
-
-import static org.openhab.binding.denonmarantz.internal.DenonMarantzBindingConstants.DB_OFFSET;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -25,6 +19,7 @@ import org.eclipse.smarthome.core.library.types.PercentType;
 import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.types.Command;
 import org.eclipse.smarthome.core.types.RefreshType;
+import org.openhab.binding.denonmarantz.DenonMarantzBindingConstants;
 import org.openhab.binding.denonmarantz.internal.DenonMarantzState;
 import org.openhab.binding.denonmarantz.internal.UnsupportedCommandTypeException;
 import org.openhab.binding.denonmarantz.internal.config.DenonMarantzConfiguration;
@@ -178,7 +173,8 @@ public abstract class DenonMarantzConnector {
             throw new UnsupportedCommandTypeException();
         } else if (dbCommand instanceof DecimalType) {
             // convert dB to 'normal' volume by adding the offset of 80
-            dbCommand = new DecimalType(((DecimalType) command).toBigDecimal().add(DB_OFFSET));
+            dbCommand = new DecimalType(
+                    ((DecimalType) command).toBigDecimal().add(DenonMarantzBindingConstants.DB_OFFSET));
         }
         sendVolumeCommand(dbCommand, zone);
     }

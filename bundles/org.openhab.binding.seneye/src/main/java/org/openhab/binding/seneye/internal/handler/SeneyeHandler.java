@@ -1,25 +1,20 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.seneye.internal.handler;
+package org.openhab.binding.seneye.handler;
 
-import static org.openhab.binding.seneye.internal.SeneyeBindingConstants.*;
+import static org.openhab.binding.seneye.SeneyeBindingConstants.*;
 
 import java.util.concurrent.TimeUnit;
 
 import org.eclipse.smarthome.core.cache.ExpiringCache;
 import org.eclipse.smarthome.core.library.types.DateTimeType;
 import org.eclipse.smarthome.core.library.types.DecimalType;
-import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingStatus;
@@ -79,10 +74,6 @@ public final class SeneyeHandler extends BaseThingHandler implements ReadingsUpd
             updateState(CHANNEL_KELVIN, new DecimalType(readings.kelvin.curr));
             updateState(CHANNEL_LASTREADING, new DateTimeType(readings.status.getLast_experimentDate()));
             updateState(CHANNEL_SLIDEEXPIRES, new DateTimeType(readings.status.getSlide_expiresDate()));
-            updateState(CHANNEL_WRONGSLIDE, new StringType(readings.status.getWrong_slideString()));
-            updateState(CHANNEL_SLIDESERIAL, new StringType(readings.status.getSlide_serialString()));
-            updateState(CHANNEL_OUTOFWATER, new StringType(readings.status.getOut_of_waterString()));
-            updateState(CHANNEL_DISCONNECTED, new StringType(readings.status.getDisconnectedString()));
         }
     }
 

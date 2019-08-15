@@ -1,26 +1,19 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.vitotronic.internal.discovery;
 
-import static org.openhab.binding.vitotronic.internal.VitotronicBindingConstants.*;
-
-import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.smarthome.config.discovery.AbstractDiscoveryService;
 import org.eclipse.smarthome.config.discovery.DiscoveryResult;
 import org.eclipse.smarthome.config.discovery.DiscoveryResultBuilder;
 import org.eclipse.smarthome.core.thing.ThingUID;
-import org.openhab.binding.vitotronic.internal.VitotronicBindingConstants;
-import org.openhab.binding.vitotronic.internal.handler.VitotronicBridgeHandler;
+import org.openhab.binding.vitotronic.VitotronicBindingConstants;
+import org.openhab.binding.vitotronic.handler.VitotronicBridgeHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,39 +24,36 @@ import org.slf4j.LoggerFactory;
  *
  * @author Stefan Andres - Initial contribution
  */
-@NonNullByDefault
 public class VitotronicDiscoveryService extends AbstractDiscoveryService {
 
-    private final Logger logger = LoggerFactory.getLogger(VitotronicDiscoveryService.class);
+    private Logger logger = LoggerFactory.getLogger(VitotronicDiscoveryService.class);
 
     private VitotronicBridgeHandler vitotronicBridgeHandler;
 
     public VitotronicDiscoveryService(VitotronicBridgeHandler vitotronicBridgeHandler) throws IllegalArgumentException {
         super(VitotronicBindingConstants.SUPPORTED_THING_TYPES_UIDS, 10, false);
         this.vitotronicBridgeHandler = vitotronicBridgeHandler;
+
     }
 
     private void addThing(ThingUID bridgeUID, String thingType, String thingID) {
         logger.trace("Adding new Vitotronic thing: {}", thingID);
         ThingUID thingUID = null;
         switch (thingType) {
-            case THING_ID_HEATING:
-                thingUID = new ThingUID(THING_TYPE_UID_HEATING, bridgeUID, thingID);
+            case VitotronicBindingConstants.THING_ID_HEATING:
+                thingUID = new ThingUID(VitotronicBindingConstants.THING_TYPE_UID_HEATING, bridgeUID, thingID);
                 break;
-            case THING_ID_GASBURNER:
-                thingUID = new ThingUID(THING_TYPE_UID_GASBURNER, bridgeUID, thingID);
+            case VitotronicBindingConstants.THING_ID_PELLETBURNER:
+                thingUID = new ThingUID(VitotronicBindingConstants.THING_TYPE_UID_PELLETBURNER, bridgeUID, thingID);
                 break;
-            case THING_ID_PELLETBURNER:
-                thingUID = new ThingUID(THING_TYPE_UID_PELLETBURNER, bridgeUID, thingID);
+            case VitotronicBindingConstants.THING_ID_STORAGETANK:
+                thingUID = new ThingUID(VitotronicBindingConstants.THING_TYPE_UID_STORAGETANK, bridgeUID, thingID);
                 break;
-            case THING_ID_STORAGETANK:
-                thingUID = new ThingUID(THING_TYPE_UID_STORAGETANK, bridgeUID, thingID);
+            case VitotronicBindingConstants.THING_ID_CIRCUIT:
+                thingUID = new ThingUID(VitotronicBindingConstants.THING_TYPE_UID_CIRCUIT, bridgeUID, thingID);
                 break;
-            case THING_ID_CIRCUIT:
-                thingUID = new ThingUID(THING_TYPE_UID_CIRCUIT, bridgeUID, thingID);
-                break;
-            case THING_ID_SOLAR:
-                thingUID = new ThingUID(THING_TYPE_UID_SOLAR, bridgeUID, thingID);
+            case VitotronicBindingConstants.THING_ID_SOLAR:
+                thingUID = new ThingUID(VitotronicBindingConstants.THING_TYPE_UID_SOLAR, bridgeUID, thingID);
                 break;
         }
 
@@ -78,10 +68,13 @@ public class VitotronicDiscoveryService extends AbstractDiscoveryService {
         } else {
             logger.debug("Discovered Thing is unsupported: type '{}'", thingID);
         }
+
     }
 
     public void addVitotronicThing(String thingType, String thingID) {
+
         addThing(vitotronicBridgeHandler.getThing().getUID(), thingType, thingID);
+
     }
 
     public void activate() {
@@ -97,4 +90,5 @@ public class VitotronicDiscoveryService extends AbstractDiscoveryService {
     protected void startScan() {
         // Scan will be done by bridge
     }
+
 }

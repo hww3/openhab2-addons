@@ -1,38 +1,13 @@
 # Homematic Binding
 
 This is the binding for the [eQ-3 Homematic Solution](http://www.eq-3.de/).
-This binding allows you to integrate, view, control and configure all Homematic devices in openHAB.
-
-## Configuration of the CCU
-
-Under `Home page > Settings > Control panel` with the menu `Configure Firewall` the Firewall configurations have to be adjusted.
-The CCU has to be configured to have "XML-RPC" set to "Full Access" or "Restricted access".
-Also the "Remote Homematic-Script API" has to be set to "Full Access" or "Restricted access".
-When the option "Restricted access" is used, some ports have to be added to the "Port opening" list.
-
-´´´
-2000;
-2001;
-2010;
-8701;
-9292;
-´´´
-
-Also the IP of the device running openHAB has to be set to the list of "IP addresses for restricted access".
-
-Also under `Home page > Settings > Control panel` with the menu `Security` the option `Authentication` has to be disabled as the binding does not support the configuration of `username` and `password`for the XML-RPC API.
-
-If this is not done the binding won't be able to connect to the CCU and the CCU Thing will stay uninitialized and sets a timeout exception:
-
-```
-xxx-xx-xx xx:xx:xx.xxx [hingStatusInfoChangedEvent] - - 'homematic:bridge:xxx' changed from INITIALIZING to OFFLINE (COMMUNICATION_ERROR): java.net.SocketTimeoutException: Connect Timeout
-```
+This binding allows you to integrate, view, control and configure all Homematic devices in the openHAB environment.
 
 ## Supported Bridges
 
 All gateways which provides the Homematic BIN- or XML-RPC API:
 
-- CCU 1, 2 and 3
+- CCU 1+2
 - [RaspberryMatic](https://github.com/jens-maus/RaspberryMatic)
 - [Homegear](https://www.homegear.eu) (>= 0.8.0-1988)
 - [piVCCU](https://github.com/alexreinert/piVCCU)
@@ -44,7 +19,7 @@ The Homematic IP Access Point **does not support** this API and and can't be use
 
 Homematic IP support:
 - CCU2 with at least firmware 2.17.15
-- [RaspberryMatic](https://github.com/jens-maus/RaspberryMatic) with the [HM-MOD-RPI-PCB](https://www.elv.de/homematic-funkmodul-fuer-raspberry-pi-bausatz.html) or [RPI-RF-MOD](https://www.elv.de/homematic-funk-modulplatine-fuer-raspberry-pi-3-rpi-rf-mod-komplettbausatz.html) RF module
+- [RaspberryMatic](https://github.com/jens-maus/RaspberryMatic) with the [HM-MOD-RPI-PCB](https://www.elv.de/homematic-funkmodul-fuer-raspberry-pi-bausatz.html) RF module
 - [piVCCU](https://github.com/alexreinert/piVCCU)
 - [YAHM](https://github.com/leonsio/YAHM)
 
@@ -57,7 +32,7 @@ These ports are used by the binding by default to communicate **TO** the gateway
 - TclRegaScript: 8181
 - Groups: 9292
 
-And **FROM** the gateway to the binding:
+And **FROM** the gateway to openHab:
 
 - XML-RPC: 9125
 - BIN-RPC: 9126
@@ -68,8 +43,8 @@ CCU Autodiscovery:
 **Note:** The binding tries to identify the gateway with XML-RPC and uses henceforth:
 
 -   **CCU**
-    - **RF**: XML-RPC
-    - **WIRED**: XML-RPC
+    - **RF**: BIN-RPC
+    - **WIRED**: BIN-RPC
     - **HMIP**: XML-RPC
     - **CUxD**: BIN-RPC (CUxD version >= 1.6 required)
     - **Groups**: XML-RPC
@@ -83,7 +58,7 @@ CCU Autodiscovery:
 ## Supported Things
 
 All devices connected to a Homematic gateway.
-All required metadata are generated during device discovery.
+All required openHAB metadata are generated during device discovery.
 With Homegear or a CCU, variables and scripts are supported too.
 
 ## Discovery
@@ -94,10 +69,10 @@ Gateway discovery is available:
 * Homegear >= 0.6.x
 * piVCCU
 
-For all other gateways you have to manually add a bridge in a things file. Device discovery is supported for all gateways.
-
+For all other gateways you have to manually add a bridge in a things file. Device discovery is supported for all gateways. 
+ 
 The binding has a gateway type autodetection, but sometimes a gateway does not clearly notify the type.
-If you are using a YAHM for example, you have to manually set the gateway type in the bride configuration to CCU.
+If you are using a YAHM for example, you have to manually set the gateway type in the bride configuration to CCU.  
 
 If autodetection can not identify the gateway, the binding uses the default gateway implementation.
 The difference is, that variables, scripts and device names are not supported, everything else is the same.
@@ -114,67 +89,59 @@ Besides discovering devices that are already known by the gateway, it may be des
 
 There are several settings for a bridge:
 
--   **gatewayAddress** (required)
+-   **gatewayAddress** (required)  
 Network address of the Homematic gateway
 
--   **gatewayType**
+-   **gatewayType**  
 Hint for the binding to identify the gateway type (auto|ccu|noccu) (default = auto).
 
--   **callbackHost**
-Callback network address of the system runtime, default is auto-discovery
+-   **callbackHost**  
+Callback network address of the openHAB server, default is auto-discovery
 
--   **bindAddress**
-The address the XML-/BINRPC server binds to, default is callbackHost
+-   **callbackPort DEPRECATED, use binCallbackPort and xmlCallbackPort**  
+Callback port of the openHAB server, default is 9125 and counts up for each additional bridge
 
--   **callbackPort DEPRECATED, use binCallbackPort and xmlCallbackPort**
-Callback port of the binding's server, default is 9125 and counts up for each additional bridge
+-   **xmlCallbackPort**  
+Callback port of the XML-RPC openHAB server, default is 9125 and counts up for each additional bridge
 
--   **xmlCallbackPort**
-Callback port of the binding's XML-RPC server, default is 9125 and counts up for each additional bridge
+-   **binCallbackPort**  
+Callback port of the BIN-RPC openHAB server, default is 9126 and counts up for each additional bridge
 
--   **binCallbackPort**
-Callback port of the binding's BIN-RPC server, default is 9126 and counts up for each additional bridge
-
--   **aliveInterval DEPRECATED, not necessary anymore**
+-   **aliveInterval DEPRECATED, not necessary anymore**  
 The interval in seconds to check if the communication with the Homematic gateway is still alive. If no message receives from the Homematic gateway, the RPC server restarts (default = 300)
 
--   **reconnectInterval DEPRECATED, not necessary anymore**
+-   **reconnectInterval DEPRECATED, not necessary anymore**  
 The interval in seconds to force a reconnect to the Homematic gateway, disables aliveInterval! (0 = disabled, default = disabled).
 If you have no sensors which sends messages in regular intervals and/or you have low communication, the aliveInterval may restart the connection to the Homematic gateway to often.
 The reconnectInterval disables the aliveInterval and reconnects after a fixed period of time.
 Think in hours when configuring (one hour = 3600)
 
--   **timeout**
+-   **timeout**  
 The timeout in seconds for connections to a Homematic gateway (default = 15)
 
--   **discoveryTimeToLive**
+-   **discoveryTimeToLive**  
 The time to live in seconds for discovery results of a Homematic gateway (default = -1, which means infinite)
 
--   **socketMaxAlive**
-The maximum lifetime of a socket connection to and from a Homematic gateway in seconds (default = 900)
+-   **socketMaxAlive**  
+The maximum lifetime of a pooled socket connection to the Homematic gateway in seconds (default = 900)
 
--   **rfPort**
+-   **rfPort**  
 The port number of the RF daemon (default = 2001)
 
--   **wiredPort**
+-   **wiredPort**  
 The port number of the HS485 daemon (default = 2000)
 
--   **hmIpPort**
+-   **hmIpPort**  
 The port number of the HMIP server (default = 2010)
 
--   **cuxdPort**
+-   **cuxdPort**  
 The port number of the CUxD daemon (default = 8701)
 
 -   **installModeDuration**
 Time in seconds that the controller will be in install mode when a device discovery is initiated (default = 60)
 
 -   **unpairOnDeletion**
-If set to true, devices are automatically unpaired from the gateway when their corresponding things are deleted.
-**Warning!** The option "factoryResetOnDeletion" also unpairs a device, so in order to avoid unpairing on deletion completely, both options need to be set to false! (default = false)
-
--   **factoryResetOnDeletion**
-If set to true, devices are automatically factory reset when their corresponding things are removed.
-Due to the factory reset, the device will also be unpaired from the gateway, even if "unpairOnDeletion" is set to false! (default = false)
+If true, devices are automatically unpaired from a gateway when the corresponding thing is deleted (default = false)
 
 The syntax for a bridge is:
 
@@ -209,7 +176,7 @@ Bridge homematic:bridge:occu  [ gatewayAddress="..."]
 
 ## Thing Configuration
 
-Things are all discovered automatically, you can handle them in PaperUI.
+Things are all discovered automatically, you can handle them in PaperUI.  
 
 If you really like to manually configure a thing:
 
@@ -222,7 +189,6 @@ Bridge homematic:bridge:ccu [ gatewayAddress="..." ]
 
 The first parameter after Thing is the device type, the second the serial number.
 If you are using Homegear, you have to add the prefix ```HG-``` for each type.
-The ```HG-``` prefix is only needed for Things, not for Items or channel configs.
 This is necessary, because the Homegear devices supports more datapoints than Homematic devices.
 
 ```java
@@ -243,7 +209,7 @@ All channels have two configs:
 
 The receiveDelay is handy for dimmers and rollershutters for example.
 If you have a slider in a UI and you move this slider to a new position, it jumps around because the gateway sends multiple events with different positions until the final has been reached.
-If you set the ```receiveDelay``` to some seconds, these events are filtered out and only the last position is distributed to the binding.
+If you set the ```receiveDelay``` to some seconds, these events are filtered out and only the last position is distributed to openHab.
 The disadvantage is of course, that all events for this channel are delayed.
 
 ```java
@@ -257,16 +223,6 @@ The disadvantage is of course, that all events for this channel are delayed.
 ```
 
 The Type is the device type, channel number and lowercase channel name separated with a underscore.
-Note that, for Homegear devices, in contrast to the specification of the Thing above no ```HG-``` prefix is needed for the specification of the Type of the Channel.
-
-The channel configs are optional.
-Example without channel configs
-```java
-  Thing HM-LC-Dim1T-Pl-2    JEQ0999999 "Name"  @  "Location" {
-      Channels:
-          Type HM-LC-Dim1T-Pl-2_1_LEVEL : 1#LEVEL
-  }
-```
 
 ### Items
 
@@ -276,10 +232,10 @@ In the items file, you can map the datapoints, the syntax is:
 homematic:TYPE:BRIDGE:SERIAL:CHANNELNUMBER#DATAPOINTNAME
 ```
 
-- **homematic:** the binding id, fixed
-- **type:** the type of the Homematic device
-- **bridge:** the name of the bridge
-- **serial:** the serial number of the Homematic device
+- **homematic:** the binding id, fixed  
+- **type:** the type of the Homematic device  
+- **bridge:** the name of the bridge  
+- **serial:** the serial number of the Homematic device  
 - **channelnumber:** the channel number of the Homematic datapoint
 - **datapointname:** the name of the Homematic datapoint
 
@@ -300,7 +256,7 @@ Virtual datapoints are generated by the binding and provides special functionali
 The GATEWAY-EXTRAS is a virtual device which contains a switch to reload all values from all devices and also a switch to put the gateway in the install mode to add new devices.
 If the gateway supports variables and scripts, you can handle them with this device too.
 The type is generated: GATEWAY-EXTRAS-&lsqb;BRIDGE_ID&rsqb;.
-Example: bridgeId=ccu, type=GATEWAY-EXTRAS-CCU
+Example: bridgeId=ccu, type=GATEWAY-EXTRAS-CCU  
 Address: fixed GWE00000000
 
 ### RELOAD_ALL_FROM_GATEWAY
@@ -340,14 +296,14 @@ A virtual datapoint (Enum) to configure the device deletion with DELETE_MODE, av
 
 ### ON_TIME_AUTOMATIC
 
-A virtual datapoint (Number) to automatically set the ON_TIME datapoint before the STATE or LEVEL datapoint is sent to the gateway, available for all devices which supports the ON_TIME datapoint.
+A virtual datapoint (Number) to automatically set the ON_TIME datapoint before the STATE or LEVEL datapoint is sent to the gateway, available for all devices which supports the ON_TIME datapoint.  
 This is usefull to automatically turn off the datapoint after the specified time.
 
 ### DISPLAY_OPTIONS
 
-A virtual datapoint (String) to control the display of a 19 button Homematic remote control (HM-RC-19), available on channel 18
+A virtual datapoint (String) to control the display of a 19 button Homematic remote control (HM-RC-19), available on channel 18  
 
-The remote control display is limited to five characters, a longer text is truncated.
+The remote control display is limited to five characters, a longer text is truncated.  
 
 You have several additional options to control the display.
 
@@ -359,9 +315,9 @@ You have several additional options to control the display.
 You can combine any option, they must be separated by a comma.
 If you specify more than one option for BEEP, BACKLIGHT and UNIT, only the first one is taken into account and all others are ignored. For SYMBOL you can specify multiple options.
 
-**Examples:**
+**Examples:**  
 
-Assumed you mapped the virtual datapoint to a String item called Display_Options
+Assumed you mapped the virtual datapoint to a String item called Display_Options   
 
 ```java
 String Display_Options "Display_Options" { channel="homematic:HM-RC-19-B:ccu:KEQ0099999:18#DISPLAY_OPTIONS" }
@@ -399,9 +355,7 @@ smarthome send Display_Options "TEXT, TONE1, BLINK_FAST, TONE3"
 
 ### DISPLAY_SUBMIT
 
-Adds multiple virtual datapoints to the HM-Dis-WM55 and HM-Dis-EP-WM55 devices to easily send (colored) text and icons to the display.
-
-**Note:** The HM-Dis-EP-WM55 has only a black and white display and therefore does not support datapoints for colored lines. In addition, only lines 1-3 can be set.
+Adds multiple virtual datapoints to the HM-Dis-WM55 device to easily send colored text and icons to the display
 
 Example: Display text at line 1,3 and 5 when the bottom button on the display is pressed
 
@@ -431,45 +385,41 @@ rule "Display Test"
 when
     Item Button_bottom received update ON
 then
-    Display_line_1.sendCommand("Line 1")
-    Display_line_3.sendCommand("Line 3")
-    Display_line_5.sendCommand("Line 5")
+    sendCommand(Display_line_1, "Line 1")
+    sendCommand(Display_line_3, "Line 3")
+    sendCommand(Display_line_5, "Line 5")
 
-    Display_icon_1.sendCommand("NONE")
-    Display_icon_3.sendCommand("OPEN")
-    Display_icon_5.sendCommand("INFO")
+    sendCommand(Display_icon_1, "NONE")
+    sendCommand(Display_icon_3, "OPEN")
+    sendCommand(Display_icon_5, "INFO")
 
-    Display_color_1.sendCommand("NONE")
-    Display_color_3.sendCommand("RED")
-    Display_color_5.sendCommand("BLUE")
+    sendCommand(Display_color_1, "NONE")
+    sendCommand(Display_color_3, "RED")
+    sendCommand(Display_color_5, "BLUE")
 
-    Display_submit.sendCommand(ON)
+    sendCommand(Display_submit, ON)
 end
 ```
 
-### BUTTON
+### PRESS
 
-A virtual datapoint (String) to simulate a key press, available on all channels that contains PRESS_ datapoints.
-Available values:
-* `SHORT_PRESS`: triggered on a short key press
-* `LONG_PRESS`: triggered on a key press longer than `LONG_PRESS_TIME` (variable configuration per key, default is 0.4 s)
-* `DOUBLE_PRESS`: triggered on a short key press but only if the latest `SHORT_PRESS` or `DOUBLE_PRESS` event is not older than 2.0 s (not related to `DBL_PRESS_TIME` configuration, which is more like a key lock because if it is other than `0.0` single presses are not notified anymore)
+A virtual datapoint (String) to simulate a key press, available on all channels that contains PRESS_ datapoints.  
+Available values: SHORT, LONG, LONG_RELEASE, CONT
 
-Example: to capture a short key press on the 19 button remote control in a rule
+Example: to capture a key press on the 19 button remote control in a rule
 
 ```javascript
 rule "example trigger rule"
 when
-    Channel 'homematic:HM-RC-19-B:ccu:KEQ0012345:1#BUTTON' triggered SHORT_PRESS
+    Channel 'homematic:HM-RC-19-B:ccu:KEQ0012345:1#PRESS' triggered SHORT
 then
     ...
 end
 ```
 
-
 ## Troubleshooting
 
-**SHORT & LONG_PRESS events of push buttons do not occur on the event bus**
+**SHORT & LONG_PRESS events of push buttons do not occur on the event bus**  
 
 It seems buttons like the HM-PB-2-WM55 do just send these kind of events to the CCU if they are mentioned in a CCU program.
 A simple workaround to make them send these events is, to create a program (rule inside the CCU) that does just have a "When" part and no "Then" part, in this "When" part each channel needs to be mentioned at least once.
@@ -477,32 +427,32 @@ As the HM-PB-2-WM55 for instance has two channels, it is enough to mention the S
 The LONG_PRESS events will work automatically as they are part of the same channels.
 After the creation of this program, the button device will receive configuration data from the CCU which have to be accepted by pressing the config-button at the back of the device.
 
-**INSTALL_TEST**
+**INSTALL_TEST**  
 
 If a button is still not working and you do not see any PRESS_LONG / SHORT in your log file (loglevel DEBUG), it could be because of enabled security.
 Try to disable security of your buttons in the HomeMatic Web GUI and try again.
 If you can't disable security try to use key INSTALL_TEST which gets updated to ON for each key press
 
-**-1 Failure**
+**-1 Failure**  
 
 A device may return this failure while fetching the datapoint values.
 I've tested pretty much but i did not found the reason. The HM-ES-TX-WM device for example always returns this failure, it's impossible with the current CCU2 firmware (2.17.15) to fetch the values.
 I've implemented two workarounds, if a device returns the failure, workaround one is executed, if the device still returns the failure, workaround two is executed.
-This always works in my tests, but you may see a OFFLINE, ONLINE cycle for the device.
-Fetching values is only done at startup or if you trigger a REFRESH. I hope this will be fixed in one of the next CCU firmwares.
+This always works in my tests, but you may see a OFFLINE, ONLINE cycle for the device.  
+Fetching values is only done at startup or if you trigger a REFRESH. I hope this will be fixed in one of the next CCU firmwares.  
 With [Homegear](https://www.homegear.eu) everything works as expected.
 
-**No variables and scripts in GATEWAY-EXTRAS**
+**No variables and scripts in GATEWAY-EXTRAS**  
 
 The gateway autodetection of the binding can not clearly identify the gateway and falls back to the default implementation.
 Use the ```gatewayType=ccu``` config to force the binding to use the CCU implementation.
 
-**Variables out of sync**
+**Variables out of sync**  
 
 The CCU only sends a event if a datapoint of a device has changed.
 There is (currently) no way to receive a event automatically when a variable has changed.
-To reload all variable values, send a REFRESH command to any variable.
-e.g you have a item linked to a variable with the name Var_1
+To reload all variable values, send a REFRESH command to any variable.  
+e.g you have a item linked to a variable with the name Var_1  
 In the console:
 
 ```shell
@@ -514,7 +464,7 @@ In scripts:
 ```javascript
 import org.eclipse.smarthome.core.types.RefreshType
 ...
-Var_1.sendCommand(RefreshType.REFRESH)
+sendCommand(Var_1, RefreshType.REFRESH)
 ```
 
 **Note:** adding new and removing deleted variables from the GATEWAY-EXTRAS Thing is currently not supported. You have to delete the Thing, start a scan and add it again.

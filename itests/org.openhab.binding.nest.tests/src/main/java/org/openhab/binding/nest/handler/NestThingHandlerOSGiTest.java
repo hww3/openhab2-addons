@@ -1,14 +1,10 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.nest.handler;
 
@@ -16,7 +12,6 @@ import static org.hamcrest.CoreMatchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 import static org.junit.Assert.assertThat;
-import static org.mockito.Mockito.*;
 import static org.openhab.binding.nest.internal.rest.NestStreamingRestClient.PUT;
 
 import java.io.IOException;
@@ -54,7 +49,6 @@ import org.eclipse.smarthome.core.thing.link.ManagedItemChannelLinkProvider;
 import org.eclipse.smarthome.core.thing.type.ChannelDefinition;
 import org.eclipse.smarthome.core.thing.type.ChannelGroupDefinition;
 import org.eclipse.smarthome.core.thing.type.ChannelGroupType;
-import org.eclipse.smarthome.core.thing.type.ChannelGroupTypeRegistry;
 import org.eclipse.smarthome.core.thing.type.ChannelType;
 import org.eclipse.smarthome.core.thing.type.ChannelTypeRegistry;
 import org.eclipse.smarthome.core.thing.type.ThingType;
@@ -70,12 +64,10 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.openhab.binding.nest.internal.config.NestBridgeConfiguration;
-import org.openhab.binding.nest.internal.handler.NestBaseHandler;
 import org.openhab.binding.nest.test.NestTestApiServlet;
 import org.openhab.binding.nest.test.NestTestBridgeHandler;
 import org.openhab.binding.nest.test.NestTestHandlerFactory;
 import org.openhab.binding.nest.test.NestTestServer;
-import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -97,7 +89,6 @@ public abstract class NestThingHandlerOSGiTest extends JavaOSGiTest {
     private static NestTestApiServlet servlet = new NestTestApiServlet();
 
     private ChannelTypeRegistry channelTypeRegistry;
-    private ChannelGroupTypeRegistry channelGroupTypeRegistry;
     private ItemFactory itemFactory;
     private ItemRegistry itemRegistry;
     private EventPublisher eventPublisher;
@@ -138,9 +129,6 @@ public abstract class NestThingHandlerOSGiTest extends JavaOSGiTest {
         channelTypeRegistry = getService(ChannelTypeRegistry.class);
         assertThat("Could not get ChannelTypeRegistry", channelTypeRegistry, is(notNullValue()));
 
-        channelGroupTypeRegistry = getService(ChannelGroupTypeRegistry.class);
-        assertThat("Could not get ChannelGroupTypeRegistry", channelGroupTypeRegistry, is(notNullValue()));
-
         eventPublisher = getService(EventPublisher.class);
         assertThat("Could not get EventPublisher", eventPublisher, is(notNullValue()));
 
@@ -152,14 +140,6 @@ public abstract class NestThingHandlerOSGiTest extends JavaOSGiTest {
 
         managedItemChannelLinkProvider = getService(ManagedItemChannelLinkProvider.class);
         assertThat("Could not get ManagedItemChannelLinkProvider", managedItemChannelLinkProvider, is(notNullValue()));
-
-        ComponentContext componentContext = mock(ComponentContext.class);
-        when(componentContext.getBundleContext()).thenReturn(bundleContext);
-
-        nestTestHandlerFactory = new NestTestHandlerFactory();
-        nestTestHandlerFactory.setRedirectUrl(REDIRECT_URL);
-        nestTestHandlerFactory.activate(componentContext);
-        registerService(nestTestHandlerFactory);
 
         nestTestHandlerFactory = getService(ThingHandlerFactory.class, NestTestHandlerFactory.class);
         assertThat("Could not get NestTestHandlerFactory", nestTestHandlerFactory, is(notNullValue()));
@@ -205,15 +185,13 @@ public abstract class NestThingHandlerOSGiTest extends JavaOSGiTest {
     protected abstract Thing buildThing(Bridge bridge);
 
     protected List<Channel> buildChannels(ThingTypeUID thingTypeUID, ThingUID thingUID) {
-        waitForAssert(() -> assertThat(thingTypeRegistry.getThingType(thingTypeUID), notNullValue()));
-
         ThingType thingType = thingTypeRegistry.getThingType(thingTypeUID);
 
         List<Channel> channels = new ArrayList<>();
         channels.addAll(buildChannels(thingUID, thingType.getChannelDefinitions(), (id) -> id));
 
         for (ChannelGroupDefinition channelGroupDefinition : thingType.getChannelGroupDefinitions()) {
-            ChannelGroupType channelGroupType = channelGroupTypeRegistry
+            ChannelGroupType channelGroupType = channelTypeRegistry
                     .getChannelGroupType(channelGroupDefinition.getTypeUID());
             String groupId = channelGroupDefinition.getId();
             if (channelGroupType != null) {
@@ -260,8 +238,7 @@ public abstract class NestThingHandlerOSGiTest extends JavaOSGiTest {
     }
 
     protected void putStreamingEventData(String json) throws IOException {
-        String singleLineJson = json.replaceAll("\n\r\\s+", "").replaceAll("\n\\s+", "").replaceAll("\n\r", "")
-                .replaceAll("\n", "");
+        String singleLineJson = json.replaceAll("\n\\s+", "").replaceAll("\n", "");
         servlet.queueEvent(PUT, singleLineJson);
     }
 

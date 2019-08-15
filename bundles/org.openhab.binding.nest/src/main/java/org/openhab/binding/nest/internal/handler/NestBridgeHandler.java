@@ -1,19 +1,15 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.nest.internal.handler;
+package org.openhab.binding.nest.handler;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
-import static org.openhab.binding.nest.internal.NestBindingConstants.JSON_CONTENT_TYPE;
+import static org.openhab.binding.nest.NestBindingConstants.JSON_CONTENT_TYPE;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -77,9 +73,8 @@ public class NestBridgeHandler extends BaseBridgeHandler implements NestStreamin
     private final NestCompositeUpdateHandler updateHandler = new NestCompositeUpdateHandler(
             this::getPresentThingsNestIds);
 
-    private @NonNullByDefault({}) NestAuthorizer authorizer;
-    private @NonNullByDefault({}) NestBridgeConfiguration config;
-
+    private @Nullable NestAuthorizer authorizer;
+    private @Nullable NestBridgeConfiguration config;
     private @Nullable ScheduledFuture<?> initializeJob;
     private @Nullable ScheduledFuture<?> transmitJob;
     private @Nullable NestRedirectUrlSupplier redirectUrlSupplier;
@@ -131,15 +126,13 @@ public class NestBridgeHandler extends BaseBridgeHandler implements NestStreamin
         logger.debug("Nest bridge disposed");
         stopStreamingUpdates();
 
-        ScheduledFuture<?> localInitializeJob = initializeJob;
-        if (localInitializeJob != null && !localInitializeJob.isCancelled()) {
-            localInitializeJob.cancel(true);
+        if (initializeJob != null && !initializeJob.isCancelled()) {
+            initializeJob.cancel(true);
             initializeJob = null;
         }
 
-        ScheduledFuture<?> localTransmitJob = transmitJob;
-        if (localTransmitJob != null && !localTransmitJob.isCancelled()) {
-            localTransmitJob.cancel(true);
+        if (transmitJob != null && !transmitJob.isCancelled()) {
+            transmitJob.cancel(true);
             transmitJob = null;
         }
 
@@ -169,10 +162,8 @@ public class NestBridgeHandler extends BaseBridgeHandler implements NestStreamin
     }
 
     private String getExistingOrNewAccessToken() throws InvalidAccessTokenException {
-        String accessToken = config.accessToken;
-        if (accessToken == null || accessToken.isEmpty()) {
-            accessToken = authorizer.getNewAccessToken();
-            config.accessToken = accessToken;
+        if (StringUtils.isEmpty(config.accessToken)) {
+            config.accessToken = authorizer.getNewAccessToken();
             config.pincode = "";
             // Update and save the access token in the bridge configuration
             Configuration configuration = editConfiguration();
@@ -180,10 +171,10 @@ public class NestBridgeHandler extends BaseBridgeHandler implements NestStreamin
             configuration.put(NestBridgeConfiguration.PINCODE, config.pincode);
             updateConfiguration(configuration);
             logger.debug("Retrieved new access token: {}", config.accessToken);
-            return accessToken;
+            return config.accessToken;
         } else {
-            logger.debug("Re-using access token from configuration: {}", accessToken);
-            return accessToken;
+            logger.debug("Re-using access token from configuration: {}", config.accessToken);
+            return config.accessToken;
         }
     }
 
@@ -236,12 +227,7 @@ public class NestBridgeHandler extends BaseBridgeHandler implements NestStreamin
     private void jsonToPutUrl(NestUpdateRequest request)
             throws FailedSendingNestDataException, InvalidAccessTokenException, FailedResolvingNestUrlException {
         try {
-            NestRedirectUrlSupplier localRedirectUrlSupplier = redirectUrlSupplier;
-            if (localRedirectUrlSupplier == null) {
-                throw new FailedResolvingNestUrlException("redirectUrlSupplier is null");
-            }
-
-            String url = localRedirectUrlSupplier.getRedirectUrl() + request.getUpdatePath();
+            String url = redirectUrlSupplier.getRedirectUrl() + request.getUpdatePath();
             logger.debug("Putting data to: {}", url);
 
             String jsonContent = NestUtils.toJson(request.getValues());
@@ -306,8 +292,7 @@ public class NestBridgeHandler extends BaseBridgeHandler implements NestStreamin
     }
 
     private void scheduleTransmitJobForPendingRequests() {
-        ScheduledFuture<?> localTransmitJob = transmitJob;
-        if (!nestUpdateRequests.isEmpty() && (localTransmitJob == null || localTransmitJob.isDone())) {
+        if (!nestUpdateRequests.isEmpty() && (transmitJob == null || transmitJob.isDone())) {
             transmitJob = scheduler.schedule(this::transmitQueue, 0, SECONDS);
         }
     }
@@ -315,12 +300,10 @@ public class NestBridgeHandler extends BaseBridgeHandler implements NestStreamin
     private void startStreamingUpdates() {
         synchronized (this) {
             try {
-                NestStreamingRestClient localStreamingRestClient = new NestStreamingRestClient(
-                        getExistingOrNewAccessToken(), getOrCreateRedirectUrlSupplier(), scheduler);
-                localStreamingRestClient.addStreamingDataListener(this);
-                localStreamingRestClient.start();
-
-                streamingRestClient = localStreamingRestClient;
+                streamingRestClient = new NestStreamingRestClient(getExistingOrNewAccessToken(),
+                        getOrCreateRedirectUrlSupplier(), scheduler);
+                streamingRestClient.addStreamingDataListener(this);
+                streamingRestClient.start();
             } catch (InvalidAccessTokenException e) {
                 logger.debug("Invalid access token", e);
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
@@ -330,11 +313,10 @@ public class NestBridgeHandler extends BaseBridgeHandler implements NestStreamin
     }
 
     private void stopStreamingUpdates() {
-        NestStreamingRestClient localStreamingRestClient = streamingRestClient;
-        if (localStreamingRestClient != null) {
+        if (streamingRestClient != null) {
             synchronized (this) {
-                localStreamingRestClient.stop();
-                localStreamingRestClient.removeStreamingDataListener(this);
+                streamingRestClient.stop();
+                streamingRestClient.removeStreamingDataListener(this);
                 streamingRestClient = null;
             }
         }
@@ -366,11 +348,7 @@ public class NestBridgeHandler extends BaseBridgeHandler implements NestStreamin
             logger.debug("Error sending data", e);
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
             scheduler.schedule(this::restartStreamingUpdates, 5, SECONDS);
-
-            NestRedirectUrlSupplier localRedirectUrlSupplier = redirectUrlSupplier;
-            if (localRedirectUrlSupplier != null) {
-                localRedirectUrlSupplier.resetCache();
-            }
+            redirectUrlSupplier.resetCache();
         }
     }
 

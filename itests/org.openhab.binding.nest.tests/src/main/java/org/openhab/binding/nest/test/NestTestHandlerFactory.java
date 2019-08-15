@@ -1,14 +1,10 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.nest.test;
 
@@ -23,18 +19,16 @@ import org.eclipse.smarthome.core.thing.ThingTypeUID;
 import org.eclipse.smarthome.core.thing.ThingUID;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandlerFactory;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
-import org.eclipse.smarthome.core.thing.binding.ThingHandlerFactory;
+import org.openhab.binding.nest.handler.NestBridgeHandler;
 import org.openhab.binding.nest.internal.discovery.NestDiscoveryService;
-import org.openhab.binding.nest.internal.handler.NestBridgeHandler;
 import org.osgi.framework.ServiceRegistration;
-import org.osgi.service.component.ComponentContext;
 
 /**
  * The {@link NestTestHandlerFactory} is responsible for creating test things and thing handlers.
  *
  * @author Wouter Born - Increase test coverage
  */
-public class NestTestHandlerFactory extends BaseThingHandlerFactory implements ThingHandlerFactory {
+public class NestTestHandlerFactory extends BaseThingHandlerFactory {
 
     private String redirectUrl = "http://localhost";
 
@@ -43,11 +37,6 @@ public class NestTestHandlerFactory extends BaseThingHandlerFactory implements T
     @Override
     public boolean supportsThingType(ThingTypeUID thingTypeUID) {
         return NestTestBridgeHandler.SUPPORTED_THING_TYPES.contains(thingTypeUID);
-    }
-
-    @Override
-    public void activate(ComponentContext componentContext) {
-        super.activate(componentContext);
     }
 
     @Override

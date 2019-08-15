@@ -1,30 +1,25 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.homematic.internal.handler;
+package org.openhab.binding.homematic.handler;
 
-import static org.eclipse.smarthome.core.thing.Thing.*;
-import static org.openhab.binding.homematic.internal.HomematicBindingConstants.CHANNEL_TYPE_DUTY_CYCLE_RATIO;
+import static org.eclipse.smarthome.core.thing.Thing.PROPERTY_FIRMWARE_VERSION;
+import static org.eclipse.smarthome.core.thing.Thing.PROPERTY_SERIAL_NUMBER;
+import static org.eclipse.smarthome.core.thing.Thing.PROPERTY_MODEL_ID;
 
 import java.io.IOException;
 import java.util.Hashtable;
 import java.util.Map;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import org.eclipse.jdt.annotation.NonNull;
 import org.eclipse.jetty.client.HttpClient;
 import org.eclipse.smarthome.config.discovery.DiscoveryService;
-import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.thing.Bridge;
 import org.eclipse.smarthome.core.thing.Channel;
 import org.eclipse.smarthome.core.thing.ChannelUID;
@@ -59,26 +54,17 @@ import org.slf4j.LoggerFactory;
 public class HomematicBridgeHandler extends BaseBridgeHandler implements HomematicGatewayAdapter {
     private final Logger logger = LoggerFactory.getLogger(HomematicBridgeHandler.class);
     private static final long REINITIALIZE_DELAY_SECONDS = 10;
-    private static final int DUTY_CYCLE_RATIO_LIMIT = 99;
     private static SimplePortPool portPool = new SimplePortPool();
-
-    private final Object dutyCycleRatioUpdateLock = new Object();
-    private final Object initDisposeLock = new Object();
-
-    private Future<?> initializeFuture;
-    private boolean isDisposed;
 
     private HomematicConfig config;
     private HomematicGateway gateway;
-    private final HomematicTypeGenerator typeGenerator;
-    private final HttpClient httpClient;
+    private HomematicTypeGenerator typeGenerator;
+    private HttpClient httpClient;
 
     private HomematicDeviceDiscoveryService discoveryService;
     private ServiceRegistration<?> discoveryServiceRegistration;
 
-    private final String ipv4Address;
-    private boolean isInDutyCycle = false;
-    private int dutyCycleRatio = 0;
+    private String ipv4Address;
 
     public HomematicBridgeHandler(@NonNull Bridge bridge, HomematicTypeGenerator typeGenerator, String ipv4Address,
             HttpClient httpClient) {
@@ -90,28 +76,21 @@ public class HomematicBridgeHandler extends BaseBridgeHandler implements Homemat
 
     @Override
     public void initialize() {
-        synchronized (initDisposeLock) {
-            isDisposed = false;
-            initializeFuture = scheduler.submit(this::initializeInternal);
-        }
-    }
-
-    private void initializeInternal() {
-        synchronized (initDisposeLock) {
-            config = createHomematicConfig();
-            registerDeviceDiscoveryService();
-
+        config = createHomematicConfig();
+        registerDeviceDiscoveryService();
+        final HomematicBridgeHandler instance = this;
+        scheduler.execute(() -> {
             try {
                 String id = getThing().getUID().getId();
-                gateway = HomematicGatewayFactory.createGateway(id, config, this, httpClient);
+                gateway = HomematicGatewayFactory.createGateway(id, config, instance, httpClient);
                 configureThingProperties();
                 gateway.initialize();
 
-                // scan for already known devices (new devices will not be discovered,
+                // scan for already known devices (new devices will not be discovered, 
                 // since installMode==true is only achieved if the bridge is online
                 discoveryService.startScan(null);
                 discoveryService.waitForScanFinishing();
-
+                
                 updateStatus(ThingStatus.ONLINE);
                 if (!config.getGatewayInfo().isHomegear()) {
                     try {
@@ -122,16 +101,14 @@ public class HomematicBridgeHandler extends BaseBridgeHandler implements Homemat
                     }
                 }
                 gateway.startWatchdogs();
-
             } catch (IOException ex) {
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, ex.getMessage());
-                logger.debug(
-                        "Homematic bridge was set to OFFLINE-COMMUNICATION_ERROR due to the following exception: {}",
+                logger.error("Homematic bridge was set to OFFLINE-COMMUNICATION_ERROR due to the following exception: {}",
                         ex.getMessage(), ex);
-                disposeInternal();
+                dispose();
                 scheduleReinitialize();
             }
-        }
+        });
     }
 
     private void configureThingProperties() {
@@ -153,28 +130,15 @@ public class HomematicBridgeHandler extends BaseBridgeHandler implements Homemat
      * Schedules a reinitialization, if the Homematic gateway is not reachable at bridge startup.
      */
     private void scheduleReinitialize() {
-        if (!isDisposed) {
-            initializeFuture = scheduler.schedule(this::initializeInternal, REINITIALIZE_DELAY_SECONDS,
-                    TimeUnit.SECONDS);
-        }
+        scheduler.schedule(() -> {
+            initialize();
+        }, REINITIALIZE_DELAY_SECONDS, TimeUnit.SECONDS);
     }
 
     @Override
     public void dispose() {
-        synchronized (initDisposeLock) {
-            super.dispose();
-
-            if (initializeFuture != null) {
-                initializeFuture.cancel(true);
-            }
-
-            disposeInternal();
-            isDisposed = true;
-        }
-    }
-
-    private void disposeInternal() {
         logger.debug("Disposing bridge '{}'", getThing().getUID().getId());
+        super.dispose();
         if (discoveryService != null) {
             discoveryService.stopScan();
             unregisterDeviceDiscoveryService();
@@ -221,7 +185,6 @@ public class HomematicBridgeHandler extends BaseBridgeHandler implements Homemat
     /**
      * Sets the OFFLINE status for all things of this bridge that has been removed from the gateway.
      */
-    @SuppressWarnings("null")
     public void setOfflineStatus() {
         for (Thing hmThing : getThing().getThings()) {
             try {
@@ -241,9 +204,6 @@ public class HomematicBridgeHandler extends BaseBridgeHandler implements Homemat
         HomematicConfig homematicConfig = getThing().getConfiguration().as(HomematicConfig.class);
         if (homematicConfig.getCallbackHost() == null) {
             homematicConfig.setCallbackHost(this.ipv4Address);
-        }
-        if (homematicConfig.getBindAddress() == null) {
-            homematicConfig.setBindAddress(homematicConfig.getCallbackHost());
         }
         if (homematicConfig.getXmlCallbackPort() == 0) {
             homematicConfig.setXmlCallbackPort(portPool.getNextPort());
@@ -286,13 +246,11 @@ public class HomematicBridgeHandler extends BaseBridgeHandler implements Homemat
      */
     private void updateThing(HmDevice device) {
         Thing hmThing = getThingByUID(UidUtils.generateThingUID(device, getThing()));
-        if (hmThing != null) {
+        if (hmThing != null && hmThing.getHandler() != null) {
             HomematicThingHandler thingHandler = (HomematicThingHandler) hmThing.getHandler();
-            if (thingHandler != null) {
-                thingHandler.thingUpdated(hmThing);
-                for (Channel channel : hmThing.getChannels()) {
-                    thingHandler.handleRefresh(channel.getUID());
-                }
+            thingHandler.thingUpdated(hmThing);
+            for (Channel channel : hmThing.getChannels()) {
+                thingHandler.handleRefresh(channel.getUID());
             }
         }
     }
@@ -300,13 +258,11 @@ public class HomematicBridgeHandler extends BaseBridgeHandler implements Homemat
     @Override
     public void onStateUpdated(HmDatapoint dp) {
         Thing hmThing = getThingByUID(UidUtils.generateThingUID(dp.getChannel().getDevice(), getThing()));
-        if (hmThing != null) {
+        if (hmThing != null && hmThing.getHandler() != null) {
             final ThingStatus status = hmThing.getStatus();
             if (status == ThingStatus.ONLINE || status == ThingStatus.OFFLINE) {
                 HomematicThingHandler thingHandler = (HomematicThingHandler) hmThing.getHandler();
-                if (thingHandler != null) {
-                    thingHandler.updateDatapointState(dp);
-                }
+                thingHandler.updateDatapointState(dp);
             }
         }
     }
@@ -314,11 +270,9 @@ public class HomematicBridgeHandler extends BaseBridgeHandler implements Homemat
     @Override
     public HmDatapointConfig getDatapointConfig(HmDatapoint dp) {
         Thing hmThing = getThingByUID(UidUtils.generateThingUID(dp.getChannel().getDevice(), getThing()));
-        if (hmThing != null) {
+        if (hmThing != null && hmThing.getHandler() != null) {
             HomematicThingHandler thingHandler = (HomematicThingHandler) hmThing.getHandler();
-            if (thingHandler != null) {
-                return thingHandler.getChannelConfig(dp);
-            }
+            return thingHandler.getChannelConfig(dp);
         }
         return new HmDatapointConfig();
     }
@@ -329,7 +283,6 @@ public class HomematicBridgeHandler extends BaseBridgeHandler implements Homemat
         updateThing(device);
     }
 
-    @SuppressWarnings("null")
     @Override
     public void onDeviceDeleted(HmDevice device) {
         discoveryService.deviceRemoved(device);
@@ -360,44 +313,9 @@ public class HomematicBridgeHandler extends BaseBridgeHandler implements Homemat
         }
 
         Thing hmThing = getThingByUID(UidUtils.generateThingUID(device, getThing()));
-        if (hmThing != null) {
-            HomematicThingHandler thingHandler = (HomematicThingHandler) hmThing.getHandler();
-            if (thingHandler != null) {
-                thingHandler.deviceLoaded(device);
-            }
+        if (hmThing != null && hmThing.getHandler() != null) {
+            ((HomematicThingHandler) hmThing.getHandler()).deviceLoaded(device);
         }
-    }
-
-    @Override
-    public void onDutyCycleRatioUpdate(int dutyCycleRatio) {
-        synchronized (dutyCycleRatioUpdateLock) {
-            this.dutyCycleRatio = dutyCycleRatio;
-            Channel dutyCycleRatioChannel = thing.getChannel(CHANNEL_TYPE_DUTY_CYCLE_RATIO);
-            if (dutyCycleRatioChannel != null) {
-                this.updateState(dutyCycleRatioChannel.getUID(), new DecimalType(dutyCycleRatio));
-            }
-
-            if (!isInDutyCycle && dutyCycleRatio >= DUTY_CYCLE_RATIO_LIMIT) {
-                logger.info("Duty cycle threshold exceeded by homematic bridge {}, it will go OFFLINE.",
-                        thing.getUID());
-                isInDutyCycle = true;
-                this.updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.DUTY_CYCLE);
-            } else if (isInDutyCycle && dutyCycleRatio < DUTY_CYCLE_RATIO_LIMIT) {
-                logger.info("Homematic bridge {} fell below duty cycle threshold and will come ONLINE again.",
-                        thing.getUID());
-                isInDutyCycle = false;
-                this.updateStatus(ThingStatus.ONLINE);
-            }
-        }
-    }
-
-    /**
-     * Returns the last value for the duty cycle ratio that was retrieved from the homematic gateway.
-     *
-     * @return The duty cycle ratio of the gateway
-     */
-    public int getDutyCycleRatio() {
-        return dutyCycleRatio;
     }
 
     @Override
@@ -425,16 +343,6 @@ public class HomematicBridgeHandler extends BaseBridgeHandler implements Homemat
         if (((HomematicThingHandler) childHandler).isDeletionPending()) {
             deleteFromGateway(UidUtils.getHomematicAddress(childThing), false, true, false);
         }
-    }
-
-    /**
-     * Updates the {@link HmDatapoint} by reloading the value from the homematic gateway.
-     *
-     * @param dp The HmDatapoint that shall be updated
-     * @throws IOException If there is a problem while communicating to the gateway
-     */
-    public void updateDatapoint(HmDatapoint dp) throws IOException {
-        getGateway().loadDatapointValue(dp);
     }
 
     /**

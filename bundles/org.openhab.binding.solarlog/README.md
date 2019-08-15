@@ -10,7 +10,7 @@ The Solar-Log is exposed as one thing with a number of channels that can be used
 
 You can either configure the Thing via the openHAB UI or via a `*.things` file, according to the following example:
 
-`Thing solarlog:meter:pv "Solar-Log 300" @ "Utility Room" [ url="http://solar-log", refreshInterval=15]`
+`Thing solarlog:meter:pv "Solar-Log 300" @ "Utility Room" [ url="http://solar-log" refreshInterval=15]`
 
 The parameters to be used are simple:
 
@@ -43,7 +43,7 @@ consyieldyesterday  | Wh | 112 Total consumption for the previous day; all of th
 consyieldmonth      | Wh | 113 Total consumption for the month; all of the consumption meters
 consyieldyear       | Wh | 114 Total consumption for the year; all of the consumption meters
 consyieldtotal      | Wh | 115 Accumulated total consumption, all Consumption meter
-totalpower          | Wp | 116 Installed generator power
+totalPower          | Wp | 116 Installed generator power
 
 ## More information
 

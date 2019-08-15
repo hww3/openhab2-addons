@@ -1,18 +1,14 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.satel.internal;
 
-import static org.openhab.binding.satel.internal.SatelBindingConstants.*;
+import static org.openhab.binding.satel.SatelBindingConstants.*;
 
 import java.util.Hashtable;
 import java.util.Map;
@@ -30,21 +26,18 @@ import org.eclipse.smarthome.core.thing.ThingUID;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandlerFactory;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandlerFactory;
-import org.eclipse.smarthome.io.transport.serial.SerialPortManager;
+import org.openhab.binding.satel.handler.Ethm1BridgeHandler;
+import org.openhab.binding.satel.handler.IntRSBridgeHandler;
+import org.openhab.binding.satel.handler.SatelBridgeHandler;
+import org.openhab.binding.satel.handler.SatelOutputHandler;
+import org.openhab.binding.satel.handler.SatelPartitionHandler;
+import org.openhab.binding.satel.handler.SatelShutterHandler;
+import org.openhab.binding.satel.handler.SatelSystemHandler;
+import org.openhab.binding.satel.handler.SatelZoneHandler;
 import org.openhab.binding.satel.internal.config.SatelThingConfig;
 import org.openhab.binding.satel.internal.discovery.SatelDeviceDiscoveryService;
-import org.openhab.binding.satel.internal.handler.Ethm1BridgeHandler;
-import org.openhab.binding.satel.internal.handler.IntRSBridgeHandler;
-import org.openhab.binding.satel.internal.handler.SatelBridgeHandler;
-import org.openhab.binding.satel.internal.handler.SatelEventLogHandler;
-import org.openhab.binding.satel.internal.handler.SatelOutputHandler;
-import org.openhab.binding.satel.internal.handler.SatelPartitionHandler;
-import org.openhab.binding.satel.internal.handler.SatelShutterHandler;
-import org.openhab.binding.satel.internal.handler.SatelSystemHandler;
-import org.openhab.binding.satel.internal.handler.SatelZoneHandler;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.annotations.Component;
-import org.osgi.service.component.annotations.Reference;
 
 /**
  * The {@link SatelHandlerFactory} is responsible for creating things and thing
@@ -61,8 +54,6 @@ public class SatelHandlerFactory extends BaseThingHandlerFactory {
 
     private Map<ThingUID, ServiceRegistration<?>> discoveryServiceRegistrations = new ConcurrentHashMap<>();
 
-    private SerialPortManager serialPortManager;
-
     @Override
     public boolean supportsThingType(ThingTypeUID thingTypeUID) {
         return SUPPORTED_THING_TYPES_UIDS.contains(thingTypeUID);
@@ -71,15 +62,14 @@ public class SatelHandlerFactory extends BaseThingHandlerFactory {
     @Override
     public Thing createThing(ThingTypeUID thingTypeUID, Configuration configuration, ThingUID thingUID,
             ThingUID bridgeUID) {
-        ThingUID effectiveUID = thingUID;
-        if (effectiveUID == null) {
+        if (thingUID == null) {
             if (DEVICE_THING_TYPES_UIDS.contains(thingTypeUID)) {
-                effectiveUID = getDeviceUID(thingTypeUID, thingUID, configuration, bridgeUID);
-            } else if (VIRTUAL_THING_TYPES_UIDS.contains(thingTypeUID) && bridgeUID != null) {
-                effectiveUID = new ThingUID(thingTypeUID, bridgeUID.getId());
+                thingUID = getDeviceUID(thingTypeUID, thingUID, configuration, bridgeUID);
+            } else if (VIRTUAL_THING_TYPES_UIDS.contains(thingTypeUID)) {
+                thingUID = new ThingUID(thingTypeUID, bridgeUID.getId());
             }
         }
-        return super.createThing(thingTypeUID, configuration, effectiveUID, bridgeUID);
+        return super.createThing(thingTypeUID, configuration, thingUID, bridgeUID);
     }
 
     @Override
@@ -91,7 +81,7 @@ public class SatelHandlerFactory extends BaseThingHandlerFactory {
             registerDiscoveryService(bridgeHandler);
             return bridgeHandler;
         } else if (IntRSBridgeHandler.SUPPORTED_THING_TYPES.contains(thingTypeUID)) {
-            SatelBridgeHandler bridgeHandler = new IntRSBridgeHandler((Bridge) thing, serialPortManager);
+            SatelBridgeHandler bridgeHandler = new IntRSBridgeHandler((Bridge) thing);
             registerDiscoveryService(bridgeHandler);
             return bridgeHandler;
         } else if (SatelZoneHandler.SUPPORTED_THING_TYPES.contains(thingTypeUID)) {
@@ -104,8 +94,6 @@ public class SatelHandlerFactory extends BaseThingHandlerFactory {
             return new SatelShutterHandler(thing);
         } else if (SatelSystemHandler.SUPPORTED_THING_TYPES.contains(thingTypeUID)) {
             return new SatelSystemHandler(thing);
-        } else if (SatelEventLogHandler.SUPPORTED_THING_TYPES.contains(thingTypeUID)) {
-            return new SatelEventLogHandler(thing);
         }
 
         return null;
@@ -120,15 +108,6 @@ public class SatelHandlerFactory extends BaseThingHandlerFactory {
         if (discoveryServiceRegistration != null) {
             discoveryServiceRegistration.unregister();
         }
-    }
-
-    @Reference
-    protected void setSerialPortManager(final SerialPortManager serialPortManager) {
-        this.serialPortManager = serialPortManager;
-    }
-
-    protected void unsetSerialPortManager(final SerialPortManager serialPortManager) {
-        this.serialPortManager = null;
     }
 
     private void registerDiscoveryService(SatelBridgeHandler bridgeHandler) {

@@ -1,16 +1,12 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.nikohomecontrol.internal.protocol.nhc1;
+package org.openhab.binding.nikohomecontrol.internal.protocol;
 
 import java.lang.reflect.Type;
 import java.util.ArrayList;
@@ -27,16 +23,16 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 
 /**
- * Class {@link NikoHomeControlMessageDeserializer1} deserializes all json messages from Niko Home Control. Various json
+ * Class {@link NikoHomeControlMessageDeserializer} deserializes all json messages from Niko Home Control. Various json
  * message formats are supported. The format is selected based on the content of the cmd and event json objects.
  *
  * @author Mark Herwege - Initial Contribution
  *
  */
-class NikoHomeControlMessageDeserializer1 implements JsonDeserializer<NhcMessageBase1> {
+class NikoHomeControlMessageDeserializer implements JsonDeserializer<NhcMessageBase> {
 
     @Override
-    public NhcMessageBase1 deserialize(final JsonElement json, final Type typeOfT,
+    public NhcMessageBase deserialize(final JsonElement json, final Type typeOfT,
             final JsonDeserializationContext context) throws JsonParseException {
         final JsonObject jsonObject = json.getAsJsonObject();
 
@@ -55,22 +51,22 @@ class NikoHomeControlMessageDeserializer1 implements JsonDeserializer<NhcMessage
                 jsonData = jsonObject.get("data");
             }
 
-            NhcMessageBase1 message = null;
+            NhcMessageBase message = null;
 
             if (jsonData != null) {
                 if (jsonData.isJsonObject()) {
-                    message = new NhcMessageMap1();
+                    message = new NhcMessageMap();
 
                     Map<String, String> data = new HashMap<>();
                     for (Entry<String, JsonElement> entry : jsonData.getAsJsonObject().entrySet()) {
                         data.put(entry.getKey(), entry.getValue().getAsString());
                     }
-                    ((NhcMessageMap1) message).setData(data);
+                    ((NhcMessageMap) message).setData(data);
 
                 } else if (jsonData.isJsonArray()) {
                     JsonArray jsonDataArray = jsonData.getAsJsonArray();
 
-                    message = new NhcMessageListMap1();
+                    message = new NhcMessageListMap();
 
                     List<Map<String, String>> dataList = new ArrayList<>();
                     for (int i = 0; i < jsonDataArray.size(); i++) {
@@ -82,7 +78,7 @@ class NikoHomeControlMessageDeserializer1 implements JsonDeserializer<NhcMessage
                         }
                         dataList.add(data);
                     }
-                    ((NhcMessageListMap1) message).setData(dataList);
+                    ((NhcMessageListMap) message).setData(dataList);
                 }
             }
 

@@ -1,14 +1,10 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.robonect.internal.model.cmd;
 
@@ -35,18 +31,16 @@ public class ModeCommand implements Command {
      * The available modes. See class documentation for the meanings.
      */
     public enum Mode {
-        HOME(1, "home"),
-        EOD(2, "eod"),
-        MANUAL(3, "man"),
-        AUTO(4, "auto"),
-        JOB(5, "job");
+        HOME(1),
+        EOD(2),
+        MANUAL(3),
+        AUTO(4),
+        JOB(5);
 
         int code;
-        String cmd;
 
-        Mode(int code, String cmd) {
+        Mode(int code) {
             this.code = code;
-            this.cmd = cmd;
         }
     }
 
@@ -154,8 +148,8 @@ public class ModeCommand implements Command {
     @Override
     public String toCommandURL(String baseURL) {
         StringBuilder sb = new StringBuilder(baseURL);
-        sb.append("?cmd=mode&mode=");
-        sb.append(mode.cmd);
+        sb.append("?cmd=mode&&mode=");
+        sb.append(mode.name().toLowerCase());
         switch (mode){
             case EOD:
             case MANUAL:

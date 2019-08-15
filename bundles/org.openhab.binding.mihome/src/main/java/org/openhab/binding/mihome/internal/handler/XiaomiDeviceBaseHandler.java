@@ -1,19 +1,14 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.openhab.binding.mihome.internal.handler;
+package org.openhab.binding.mihome.handler;
 
-import static org.eclipse.smarthome.core.library.unit.MetricPrefix.*;
-import static org.openhab.binding.mihome.internal.XiaomiGatewayBindingConstants.*;
+import static org.openhab.binding.mihome.XiaomiGatewayBindingConstants.*;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -21,16 +16,6 @@ import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import javax.measure.Unit;
-import javax.measure.quantity.Angle;
-import javax.measure.quantity.Dimensionless;
-import javax.measure.quantity.Pressure;
-import javax.measure.quantity.Temperature;
-import javax.measure.quantity.Time;
-
-import org.eclipse.smarthome.core.library.types.StringType;
-import org.eclipse.smarthome.core.library.unit.SIUnits;
-import org.eclipse.smarthome.core.library.unit.SmartHomeUnits;
 import org.eclipse.smarthome.core.thing.Bridge;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
@@ -60,25 +45,17 @@ import com.google.gson.JsonSyntaxException;
  *         switches
  * @author Daniel Walters - Added Aqara Door/Window sensor and Aqara temperature, humidity and pressure sensor
  */
-public class XiaomiDeviceBaseHandler extends BaseThingHandler implements XiaomiItemUpdateListener {
+public abstract class XiaomiDeviceBaseHandler extends BaseThingHandler implements XiaomiItemUpdateListener {
 
     public static final Set<ThingTypeUID> SUPPORTED_THING_TYPES = new HashSet<>(Arrays.asList(THING_TYPE_GATEWAY,
             THING_TYPE_SENSOR_HT, THING_TYPE_SENSOR_AQARA_WEATHER_V1, THING_TYPE_SENSOR_MOTION,
             THING_TYPE_SENSOR_AQARA_MOTION, THING_TYPE_SENSOR_SWITCH, THING_TYPE_SENSOR_AQARA_SWITCH,
-            THING_TYPE_SENSOR_MAGNET, THING_TYPE_SENSOR_AQARA_LOCK, THING_TYPE_SENSOR_AQARA_MAGNET,
-            THING_TYPE_SENSOR_CUBE, THING_TYPE_SENSOR_AQARA_VIBRATION, THING_TYPE_SENSOR_AQARA1,
+            THING_TYPE_SENSOR_MAGNET, THING_TYPE_SENSOR_AQARA_MAGNET, THING_TYPE_SENSOR_CUBE, THING_TYPE_SENSOR_AQARA1,
             THING_TYPE_SENSOR_AQARA2, THING_TYPE_SENSOR_GAS, THING_TYPE_SENSOR_SMOKE, THING_TYPE_SENSOR_WATER,
             THING_TYPE_ACTOR_AQARA1, THING_TYPE_ACTOR_AQARA2, THING_TYPE_ACTOR_PLUG, THING_TYPE_ACTOR_AQARA_ZERO1,
-            THING_TYPE_ACTOR_AQARA_ZERO2, THING_TYPE_ACTOR_CURTAIN, THING_TYPE_BASIC));
+            THING_TYPE_ACTOR_AQARA_ZERO2, THING_TYPE_ACTOR_CURTAIN));
 
-    protected static final Unit<Temperature> TEMPERATURE_UNIT = SIUnits.CELSIUS;
-    protected static final Unit<Pressure> PRESSURE_UNIT = KILO(SIUnits.PASCAL);
-    protected static final Unit<Dimensionless> PERCENT_UNIT = SmartHomeUnits.PERCENT;
-    protected static final Unit<Angle> ANGLE_UNIT = SmartHomeUnits.DEGREE_ANGLE;
-    protected static final Unit<Time> TIME_UNIT = MILLI(SmartHomeUnits.SECOND);
-
-    private static final String REMOVE_DEVICE = "remove_device";
-    private static final long ONLINE_TIMEOUT_MILLIS = TimeUnit.HOURS.toMillis(2);
+    private static final long ONLINE_TIMEOUT_MILLIS = 2 * 60 * 60 * 1000; // 2 hours
     private ScheduledFuture<?> onlineCheckTask;
 
     private JsonParser parser = new JsonParser();
@@ -121,12 +98,6 @@ public class XiaomiDeviceBaseHandler extends BaseThingHandler implements XiaomiI
     }
 
     @Override
-    public void handleRemoval() {
-        getXiaomiBridgeHandler().writeToBridge(new String[] { REMOVE_DEVICE }, new Object[] { itemId });
-        super.handleRemoval();
-    }
-
-    @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
         logger.debug("Device {} on channel {} received command {}", getItemId(), channelUID, command);
         if (command instanceof RefreshType) {
@@ -151,9 +122,6 @@ public class XiaomiDeviceBaseHandler extends BaseThingHandler implements XiaomiI
             try {
                 JsonObject data = parser.parse(message.get("data").getAsString()).getAsJsonObject();
                 parseCommand(command, data);
-                if (THING_TYPE_BASIC.equals(getThing().getThingTypeUID())) {
-                    parseDefault(message);
-                }
             } catch (JsonSyntaxException e) {
                 logger.warn("Unable to parse message as valid JSON: {}", message);
             }
@@ -185,36 +153,24 @@ public class XiaomiDeviceBaseHandler extends BaseThingHandler implements XiaomiI
     }
 
     void parseReport(JsonObject data) {
-        updateState(CHANNEL_REPORT_MSG, StringType.valueOf(data.toString()));
+        logger.debug("The binding does not parse this message yet, contact authors if you want it to");
     }
 
     void parseHeartbeat(JsonObject data) {
-        updateState(CHANNEL_HEARTBEAT_MSG, StringType.valueOf(data.toString()));
+        logger.debug("The binding does not parse this message yet, contact authors if you want it to");
     }
 
     void parseReadAck(JsonObject data) {
-        updateState(CHANNEL_READ_ACK_MSG, StringType.valueOf(data.toString()));
+        logger.debug("The binding does not parse this message yet, contact authors if you want it to");
     }
 
     void parseWriteAck(JsonObject data) {
-        updateState(CHANNEL_WRITE_ACK_MSG, StringType.valueOf(data.toString()));
+        logger.debug("The binding does not parse this message yet, contact authors if you want it to");
     }
 
-    void parseDefault(JsonObject data) {
-        updateState(CHANNEL_LAST_MSG, StringType.valueOf(data.toString()));
-    }
+    abstract void parseDefault(JsonObject data);
 
-    void execute(ChannelUID channelUID, Command command) {
-        if (CHANNEL_WRITE_MSG.equals(channelUID.getId())) {
-            if (command instanceof StringType) {
-                getXiaomiBridgeHandler().writeToDevice(itemId, ((StringType) command).toFullString());
-            } else {
-                logger.debug("Command \"{}\" has to be of StringType", command);
-            }
-        } else {
-            logger.debug("Received command on read-only channel, thus ignoring it.");
-        }
-    }
+    abstract void execute(ChannelUID channelUID, Command command);
 
     private void updateThingStatus() {
         if (getItemId() != null) {

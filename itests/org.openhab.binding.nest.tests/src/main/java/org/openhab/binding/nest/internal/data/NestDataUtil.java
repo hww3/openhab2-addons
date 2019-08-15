@@ -1,24 +1,19 @@
 /**
- * Copyright (c) 2010-2019 Contributors to the openHAB project
+ * Copyright (c) 2010-2018 by the respective copyright holders.
  *
- * See the NOTICE file(s) distributed with this work for additional
- * information.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0
- *
- * SPDX-License-Identifier: EPL-2.0
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  */
 package org.openhab.binding.nest.internal.data;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
-import java.util.stream.Collectors;
 
 import javax.measure.Unit;
 import javax.measure.quantity.Temperature;
@@ -67,7 +62,7 @@ public final class NestDataUtil {
 
     public static Reader openDataReader(String fileName) throws UnsupportedEncodingException {
         String packagePath = (NestDataUtil.class.getPackage().getName()).replaceAll("\\.", "/");
-        String filePath = "/" + packagePath + "/" + fileName;
+        String filePath = "src/test/resources/" + packagePath + "/" + fileName;
         InputStream inputStream = NestDataUtil.class.getClassLoader().getResourceAsStream(filePath);
         return new InputStreamReader(inputStream, "UTF-8");
     }
@@ -90,7 +85,13 @@ public final class NestDataUtil {
 
     public static String fromFile(String fileName) throws IOException {
         try (Reader reader = openDataReader(fileName)) {
-            return new BufferedReader(reader).lines().parallel().collect(Collectors.joining("\n"));
+            StringWriter writer = new StringWriter();
+            char[] buffer = new char[1024 * 4];
+            int n = 0;
+            while (-1 != (n = reader.read(buffer))) {
+                writer.write(buffer, 0, n);
+            }
+            return writer.toString();
         }
     }
 
