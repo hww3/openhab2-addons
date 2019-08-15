@@ -21,15 +21,15 @@ public class VenstarInfoData {
     double cooltemp;
     double heattemp;
 
-    int state;
-    int mode;
+    VenstarSystemState state;
+    VenstarSystemMode mode;
     int tempunits;
 
     public VenstarInfoData() {
         super();
     }
 
-    public VenstarInfoData(double cooltemp, double heattemp, int state, int mode) {
+    public VenstarInfoData(double cooltemp, double heattemp, VenstarSystemState state, VenstarSystemMode mode) {
         super();
         this.cooltemp = cooltemp;
         this.heattemp = heattemp;
@@ -53,19 +53,19 @@ public class VenstarInfoData {
         this.heattemp = heattemp;
     }
 
-    public int getState() {
+    public VenstarSystemState getState() {
         return state;
     }
 
-    public void setState(int state) {
+    public void setState(VenstarSystemState state) {
         this.state = state;
     }
 
-    public int getMode() {
+    public VenstarSystemMode getMode() {
         return mode;
     }
 
-    public void setMode(int mode) {
+    public void setMode(VenstarSystemMode mode) {
         this.mode = mode;
     }
 

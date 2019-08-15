@@ -52,7 +52,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
     private static final String COLOR_TOUCH_DISCOVERY_MESSAGE = "M-SEARCH * HTTP/1.1\r\n"
             + "Host: 239.255.255.250:1900\r\n" + "Man: ssdp:discover\r\n" + "ST: colortouch:ecp\r\n" + "\r\n";
     private static final Pattern USN_PATTERN = Pattern
-            .compile("^colortouch:ecp((?::[0-9a-fA-F]{2}){6}):name:(.+)(?::type:(\\w+))");
+            .compile("^(colortouch:)?ecp((?::[0-9a-fA-F]{2}){6}):name:(.+)(?::type:(\\w+))");
     private static final String SSDP_MATCH = "colortouch:ecp";
     private static final int BACKGROUND_SCAN_INTERVAL = 300; // seconds
     private ScheduledFuture<?> scheduledFuture;
@@ -214,8 +214,8 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
                 case "usn":
                     Matcher m = USN_PATTERN.matcher(value);
                     if (m.find()) {
-                        uuid = m.group(1);
-                        name = m.group(2);
+                        uuid = m.group(2);
+                        name = m.group(3);
                     }
                     break;
                 default:

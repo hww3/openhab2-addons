@@ -42,6 +42,8 @@ public class VenstarThermostatBindingConstants {
     public final static String CHANNEL_COOLING_SETPOINT = "coolingSetpoint";
     public final static String CHANNEL_SYSTEM_STATE = "systemState";
     public final static String CHANNEL_SYSTEM_MODE = "systemMode";
+    public final static String CHANNEL_SYSTEM_STATE_RAW = "systemStateRaw";
+    public final static String CHANNEL_SYSTEM_MODE_RAW = "systemModeRaw";
 
     public final static String CONFIG_USERNAME = "username";
     public final static String CONFIG_PASSWORD = "password";

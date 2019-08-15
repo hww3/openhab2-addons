@@ -14,9 +14,11 @@
 			<channel id="humidity" typeId="humidity" />
 			<channel id="outdoorTemperature" typeId="outdoorTemperature" />
 			<channel id="systemMode" typeId="systemMode" />
+			<channel id="systemModeRaw" typeId="systemModeRaw" />
 			<channel id="heatingSetpoint" typeId="heatingSetpoint" />
 			<channel id="coolingSetpoint" typeId="coolingSetpoint" />
 			<channel id="systemState" typeId="systemState" />
+			<channel id="systemStateRaw" typeId="systemStateRaw" />
 		</channels>
 
 		<properties>
@@ -48,12 +50,19 @@
 		<description>Current System Operating Mode</description>
 		<state readOnly="false">
 			<options>
-				<option value="0">Off</option>
-				<option value="1">Heat</option>
-				<option value="2">Cool</option>
-				<option value="3">Auto</option>
+				<option value="off">Off</option>
+				<option value="heat">Heat</option>
+				<option value="cool">Cool</option>
+				<option value="auto">Auto</option>
 			</options>
 		</state>
+	</channel-type>
+
+	<channel-type id="systemModeRaw" advanced="true">
+		<item-type>Number</item-type>
+		<label>System Mode (Raw)</label>
+		<description>Current System Operating Mode, as an integer number</description>
+		<state readOnly="true"/>
 	</channel-type>
 
 	<channel-type id="systemState">
@@ -62,13 +71,20 @@
 		<description>Current System Operating State</description>
 		<state readOnly="true">
 			<options>
-				<option value="0">Idle</option>
-				<option value="1">Heating</option>
-				<option value="2">Cooling</option>
-				<option value="3">Lockout</option>
-				<option value="4">Error</option>
+				<option value="idle">Idle</option>
+				<option value="heating">Heating</option>
+				<option value="cooling">Cooling</option>
+				<option value="lockout">Lockout</option>
+				<option value="error">Error</option>
 			</options>
 		</state>
+	</channel-type>
+
+	<channel-type id="systemStateRaw" advanced="true">
+		<item-type>Number</item-type>
+		<label>System State (Raw)</label>
+		<description>Current System Operating State, as an integer</description>
+		<state readOnly="true"/>
 	</channel-type>
 
 	<channel-type id="heatingSetpoint">
