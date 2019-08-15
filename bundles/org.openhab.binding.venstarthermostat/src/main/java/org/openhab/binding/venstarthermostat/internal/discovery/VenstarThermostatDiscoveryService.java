@@ -1,3 +1,15 @@
+/**
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
+ *
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ */
 package org.openhab.binding.venstarthermostat.internal.discovery;
 
 import java.io.IOException;
@@ -21,26 +33,28 @@ import org.eclipse.smarthome.config.discovery.AbstractDiscoveryService;
 import org.eclipse.smarthome.config.discovery.DiscoveryResult;
 import org.eclipse.smarthome.config.discovery.DiscoveryResultBuilder;
 import org.eclipse.smarthome.config.discovery.DiscoveryService;
-import org.eclipse.smarthome.config.discovery.DiscoveryServiceCallback;
-import org.eclipse.smarthome.config.discovery.ExtendedDiscoveryService;
-import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingUID;
 import org.openhab.binding.venstarthermostat.VenstarThermostatBindingConstants;
-import org.openhab.binding.venstarthermostat.handler.VenstarThermostatHandler;
 import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * The {@link VenstarThermostatDiscoveryService} is responsible for discovery of
+ * Venstar thermostats on the local network
+ *
+ * @author William Welliver - Initial contribution
+ * @author Dan Cunningham - Refactoring and Improvements
+ */
 @Component(service = DiscoveryService.class, immediate = true, configurationPid = "binding.venstarthermostat")
-public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService implements ExtendedDiscoveryService {
+public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService {
     private final Logger log = LoggerFactory.getLogger(VenstarThermostatDiscoveryService.class);
     private static final String COLOR_TOUCH_DISCOVERY_MESSAGE = "M-SEARCH * HTTP/1.1\r\n"
             + "Host: 239.255.255.250:1900\r\n" + "Man: ssdp:discover\r\n" + "ST: colortouch:ecp\r\n" + "\r\n";
     private static final Pattern USN_PATTERN = Pattern
-            .compile("^colortouch:ecp((?::[0-9a-fA-F]{2}){6}):name:(.+)(?::type:(\\w+))");
+            .compile("^(colortouch:)?ecp((?::[0-9a-fA-F]{2}){6}):name:(.+)(?::type:(\\w+))");
     private static final String SSDP_MATCH = "colortouch:ecp";
     private static final int BACKGROUND_SCAN_INTERVAL = 300; // seconds
-    private DiscoveryServiceCallback discoveryServiceCallback;
     private ScheduledFuture<?> scheduledFuture;
 
     public VenstarThermostatDiscoveryService() {
@@ -65,17 +79,12 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
 
     @Override
     protected void startScan() {
-        log.info("Starting Interactive Scan");
+        log.debug("Starting Interactive Scan");
         doRunRun();
     }
 
-    @Override
-    public void setDiscoveryServiceCallback(DiscoveryServiceCallback discoveryServiceCallback) {
-        this.discoveryServiceCallback = discoveryServiceCallback;
-    }
-
     protected synchronized void doRunRun() {
-        log.debug("Sending SSDP discover.");
+        log.trace("Sending SSDP discover.");
         for (int i = 0; i < 5; i++) {
             try {
                 Enumeration<NetworkInterface> nets = NetworkInterface.getNetworkInterfaces();
@@ -107,10 +116,10 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
         InetAddress m = InetAddress.getByName("239.255.255.250");
         final int port = 1900;
 
-        log.debug("Considering {}", ni.getName());
+        log.trace("Considering {}", ni.getName());
         try {
             if (!ni.isUp() || !ni.supportsMulticast()) {
-                log.debug("skipping interface {}", ni.getName());
+                log.trace("skipping interface {}", ni.getName());
                 return null;
             }
 
@@ -125,7 +134,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
                 }
             }
             if (a == null) {
-                log.debug("no ipv4 address on " + ni.getName());
+                log.trace("no ipv4 address on " + ni.getName());
                 return null;
             }
 
@@ -136,7 +145,6 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
             MulticastSocket socket = new MulticastSocket(new InetSocketAddress(port));
             socket.setSoTimeout(2000);
             socket.setReuseAddress(true);
-            // log.debug("Network Interface: " + ni.getName());
             socket.setNetworkInterface(ni);
             socket.joinGroup(m);
 
@@ -146,7 +154,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
             socket.send(datagramPacket);
             return socket;
         } catch (IOException e) {
-            log.debug("got ioexception: " + e.getMessage());
+            log.trace("got ioexception: " + e.getMessage());
         }
 
         return null;
@@ -171,7 +179,7 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
             try {
                 socket.receive(packet);
             } catch (Exception e) {
-                log.debug("Got exception while trying to receive UPnP packets: " + e.getMessage());
+                log.trace("Got exception while trying to receive UPnP packets: " + e.getMessage());
                 return;
             }
             String response = new String(packet.getData());
@@ -206,8 +214,8 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
                 case "usn":
                     Matcher m = USN_PATTERN.matcher(value);
                     if (m.find()) {
-                        uuid = m.group(1);
-                        name = m.group(2);
+                        uuid = m.group(2);
+                        name = m.group(3);
                     }
                     break;
                 default:
@@ -227,35 +235,14 @@ public class VenstarThermostatDiscoveryService extends AbstractDiscoveryService 
 
         ThingUID thingUid = new ThingUID(VenstarThermostatBindingConstants.THING_TYPE_COLOR_TOUCH, uuid);
 
-        log.debug("Got discovered device.");
-
-        Thing thing = getExistingThing(thingUid);
-        if (thing != null) {
-            log.debug("Already have thing with ID=<{}>", thingUid);
-            String thingUrl = thing.getProperties().get(VenstarThermostatBindingConstants.PROPERTY_URL);
-            log.debug("ThingURL=<{}>, discoveredUrl=<{}>", thingUrl, url);
-            if (thingUrl == null || !thingUrl.equals(url)) {
-                ((VenstarThermostatHandler) thing.getHandler()).updateUrl(url);
-                thing.getHandler().thingUpdated(thing);
-                log.info("Updated url for existing Thermostat => {}", url);
-            }
-            return;
-        } else {
-            log.debug("New Device, adding to inbox");
-        }
+        log.trace("Got discovered device.");
 
         String label = String.format("Venstar Thermostat (%s)", name);
         result = DiscoveryResultBuilder.create(thingUid).withLabel(label).withRepresentationProperty(uuid)
                 .withProperty(VenstarThermostatBindingConstants.PROPERTY_UUID, uuid)
                 .withProperty(VenstarThermostatBindingConstants.PROPERTY_URL, url).build();
-        log.debug("New venstar thermostat discovered with ID=<{}>", uuid);
+        log.trace("New venstar thermostat discovered with ID=<{}>", uuid);
         this.thingDiscovered(result);
     }
 
-    public Thing getExistingThing(ThingUID thingUid) {
-        if (discoveryServiceCallback != null) {
-            return discoveryServiceCallback.getExistingThing(thingUid);
-        }
-        return null;
-    }
 }

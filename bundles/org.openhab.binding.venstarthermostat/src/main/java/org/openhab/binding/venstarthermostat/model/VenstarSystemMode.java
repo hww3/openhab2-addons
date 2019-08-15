@@ -1,10 +1,10 @@
 package org.openhab.binding.venstarthermostat.model;
 
 public enum VenstarSystemMode {
-    IDLE(0, "off", "Off"),
-    HEATING(1, "heat", "Heat"),
-    COOLING(2, "cool", "Cool"),
-    LOCKOUT(3, "auto", "Auto");
+    OFF(0, "off", "Off"),
+    HEAT(1, "heat", "Heat"),
+    COOL(2, "cool", "Cool"),
+    AUTO(3, "auto", "Auto");
 
     private int mode;
     private String name;
