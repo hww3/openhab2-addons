@@ -171,7 +171,6 @@
     <module>org.openhab.binding.sensebox</module>
     <module>org.openhab.binding.serialbutton</module>
     <module>org.openhab.binding.silvercrestwifisocket</module>
-    <module>org.openhab.binding.siemensrds</module>
     <module>org.openhab.binding.sleepiq</module>
     <module>org.openhab.binding.smaenergymeter</module>
     <module>org.openhab.binding.smartmeter</module>
@@ -181,7 +180,6 @@
     <module>org.openhab.binding.somfytahoma</module>
     <module>org.openhab.binding.sonos</module>
     <module>org.openhab.binding.sonyaudio</module>
-    <module>org.openhab.binding.sonyprojector</module>
     <module>org.openhab.binding.spotify</module>
     <module>org.openhab.binding.squeezebox</module>
     <module>org.openhab.binding.synopanalyzer</module>
@@ -198,7 +196,6 @@
     <module>org.openhab.binding.valloxmv</module>
     <module>org.openhab.binding.vektiva</module>
     <module>org.openhab.binding.velbus</module>
-    <module>org.openhab.binding.venstarthermostat</module>
     <module>org.openhab.binding.vitotronic</module>
     <module>org.openhab.binding.volvooncall</module>
     <module>org.openhab.binding.weatherunderground</module>

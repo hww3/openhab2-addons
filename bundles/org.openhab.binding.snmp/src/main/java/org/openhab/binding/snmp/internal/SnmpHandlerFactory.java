@@ -35,7 +35,7 @@ import org.osgi.service.component.annotations.Reference;
  * @author Jan N. Klug - Initial contribution
  */
 @NonNullByDefault
-@Component(service = ThingHandlerFactory.class, configurationPid = "binding.snmp")
+@Component(service = ThingHandlerFactory.class)
 public class SnmpHandlerFactory extends BaseThingHandlerFactory {
     private static final Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = Collections.singleton(THING_TYPE_TARGET);
 

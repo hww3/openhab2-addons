@@ -1,12 +1,16 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.milight.internal.protocol;
+package org.openhab.binding.milight.internal.discovery;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -18,13 +22,25 @@ import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.util.Enumeration;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
-import org.openhab.binding.milight.MilightBindingConstants;
+import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
+import org.eclipse.smarthome.config.discovery.AbstractDiscoveryService;
+import org.eclipse.smarthome.config.discovery.DiscoveryResult;
+import org.eclipse.smarthome.config.discovery.DiscoveryResultBuilder;
+import org.eclipse.smarthome.config.discovery.DiscoveryService;
+import org.eclipse.smarthome.core.thing.ThingUID;
+import org.openhab.binding.milight.internal.MilightBindingConstants;
+import org.openhab.binding.milight.internal.handler.BridgeHandlerConfig;
+import org.openhab.binding.milight.internal.protocol.MilightV6SessionManager;
+import org.openhab.binding.milight.internal.protocol.MilightV6SessionManager.ISessionState;
 import org.openhab.binding.milight.internal.protocol.MilightV6SessionManager.SessionState;
+import org.osgi.service.component.annotations.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,68 +56,91 @@ import org.slf4j.LoggerFactory;
  *
  * @author David Graeff - Initial contribution
  */
-public class MilightDiscover extends Thread {
-    /**
-     * Result callback interface.
-     */
-    public interface DiscoverResult {
-        void bridgeDetected(InetAddress addr, String id, int version);
+@NonNullByDefault
+@Component(service = DiscoveryService.class, immediate = true, configurationPid = "discovery.milight")
+public class MilightBridgeDiscovery extends AbstractDiscoveryService implements Runnable {
+    private final Logger logger = LoggerFactory.getLogger(MilightBridgeDiscovery.class);
 
-        void noBridgeDetected();
-    }
+    ///// Static configuration
+    private static final boolean ENABLE_V3 = true;
+    private static final boolean ENABLE_V6 = true;
+
+    private @Nullable ScheduledFuture<?> backgroundFuture;
 
     ///// Network
-    private byte[] discoverBufferV3 = "Link_Wi-Fi".getBytes();
-    private byte[] discoverBufferV6 = "HF-A11ASSISTHREAD".getBytes();
+    private final int receivePort;
     private final DatagramPacket discoverPacketV3;
     private final DatagramPacket discoverPacketV6;
     private boolean willbeclosed = false;
+    @NonNullByDefault({})
     private DatagramSocket datagramSocket;
-    private byte[] buffer = new byte[1024];
-    private DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
-
-    ///// Debug
-    private Logger logger = LoggerFactory.getLogger(MilightDiscover.class);
+    private final byte[] buffer = new byte[1024];
+    private final DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
 
     ///// Result and resend
-    private final DiscoverResult discoverResult;
     private int resendCounter = 0;
-    private ScheduledFuture<?> resendTimer;
+    private @Nullable ScheduledFuture<?> resendTimer;
     private final int resendTimeoutInMillis;
     private final int resendAttempts;
-    private InetAddress destIP;
-    private ScheduledExecutorService scheduler;
 
-    public MilightDiscover(DiscoverResult discoverResult, int resendTimeoutInMillis, int resendAttempts)
-            throws SocketException {
-        this.resendAttempts = resendAttempts;
-        this.resendTimeoutInMillis = resendTimeoutInMillis;
-        discoverPacketV3 = new DatagramPacket(discoverBufferV3, discoverBufferV3.length);
-        discoverPacketV6 = new DatagramPacket(discoverBufferV6, discoverBufferV6.length);
-        datagramSocket = new DatagramSocket(null);
-        datagramSocket.setBroadcast(true);
-        datagramSocket.bind(null);
-        this.discoverResult = discoverResult;
+    public MilightBridgeDiscovery() throws IllegalArgumentException, UnknownHostException {
+        super(MilightBindingConstants.BRIDGE_THING_TYPES_UIDS, 2, true);
+        this.resendAttempts = 2000 / 200;
+        this.resendTimeoutInMillis = 200;
+        this.receivePort = MilightBindingConstants.PORT_DISCOVER;
+        discoverPacketV3 = new DatagramPacket(MilightBindingConstants.DISCOVER_MSG_V3,
+                MilightBindingConstants.DISCOVER_MSG_V3.length);
+        discoverPacketV6 = new DatagramPacket(MilightBindingConstants.DISCOVER_MSG_V6,
+                MilightBindingConstants.DISCOVER_MSG_V6.length);
+
+        startDiscoveryService();
     }
 
-    /**
-     * Closes the socket and waits for the thread to shutdown.
-     * You cannot reuse this object after calling release.
-     */
-    public void release() {
-        if (datagramSocket == null) {
+    @Override
+    protected void startBackgroundDiscovery() {
+        if (backgroundFuture != null) {
             return;
         }
-        stopResend();
-        willbeclosed = true;
-        datagramSocket.close();
-        if (Thread.currentThread() != this) {
-            try {
-                join(500);
-            } catch (InterruptedException e) {
-            }
-            interrupt();
+
+        backgroundFuture = scheduler.scheduleWithFixedDelay(this::startDiscoveryService, 50, 60000 * 30,
+                TimeUnit.MILLISECONDS);
+    }
+
+    @Override
+    protected void stopBackgroundDiscovery() {
+        stopScan();
+        final ScheduledFuture<?> future = backgroundFuture;
+        if (future != null) {
+            future.cancel(false);
+            this.backgroundFuture = null;
         }
+        stop();
+    }
+
+    public void bridgeDetected(InetAddress addr, String id, int version) {
+        ThingUID thingUID = new ThingUID(version == 6 ? MilightBindingConstants.BRIDGEV6_THING_TYPE
+                : MilightBindingConstants.BRIDGEV3_THING_TYPE, id);
+
+        Map<String, Object> properties = new TreeMap<>();
+        properties.put(BridgeHandlerConfig.CONFIG_BRIDGE_ID, id);
+        properties.put(BridgeHandlerConfig.CONFIG_HOST_NAME, addr.getHostAddress());
+
+        String label = "Bridge " + id;
+
+        DiscoveryResult discoveryResult = DiscoveryResultBuilder.create(thingUID).withLabel(label)
+                .withProperties(properties).build();
+        thingDiscovered(discoveryResult);
+    }
+
+    @Override
+    protected void startScan() {
+        startDiscoveryService();
+    }
+
+    @Override
+    protected synchronized void stopScan() {
+        stop();
+        super.stopScan();
     }
 
     /**
@@ -112,16 +151,7 @@ public class MilightDiscover extends Thread {
         public void run() {
             // Stop after a certain amount of attempts
             if (++resendCounter > resendAttempts) {
-                stopResend();
-                // If we tried to discover a specific bridge, we apparently failed. Report this to the observer.
-                if (destIP != null) {
-                    discoverResult.noBridgeDetected();
-                }
-                return;
-            }
-
-            if (destIP != null) {
-                sendDiscover(destIP);
+                stop();
                 return;
             }
 
@@ -130,7 +160,7 @@ public class MilightDiscover extends Thread {
                 e = NetworkInterface.getNetworkInterfaces();
             } catch (SocketException e1) {
                 logger.error("Could not enumerate network interfaces for sending the discover packet!");
-                stopResend();
+                stop();
                 return;
             }
             while (e.hasMoreElements()) {
@@ -145,23 +175,26 @@ public class MilightDiscover extends Thread {
         }
 
         private void sendDiscover(InetAddress destIP) {
-            discoverPacketV3.setAddress(destIP);
-            discoverPacketV3.setPort(MilightBindingConstants.PORT_DISCOVER);
-            discoverPacketV6.setAddress(destIP);
-            discoverPacketV6.setPort(MilightBindingConstants.PORT_DISCOVER);
-
-            try {
-                datagramSocket.send(discoverPacketV3);
-            } catch (IOException e) {
-                logger.error("Sending a V3 discovery packet to {} failed. {}", destIP.getHostAddress(),
-                        e.getLocalizedMessage());
+            if (ENABLE_V3) {
+                discoverPacketV3.setAddress(destIP);
+                discoverPacketV3.setPort(MilightBindingConstants.PORT_DISCOVER);
+                try {
+                    datagramSocket.send(discoverPacketV3);
+                } catch (IOException e) {
+                    logger.error("Sending a V3 discovery packet to {} failed. {}", destIP.getHostAddress(),
+                            e.getLocalizedMessage());
+                }
             }
 
-            try {
-                datagramSocket.send(discoverPacketV6);
-            } catch (IOException e) {
-                logger.error("Sending a V6 discovery packet to {} failed. {}", destIP.getHostAddress(),
-                        e.getLocalizedMessage());
+            if (ENABLE_V6) {
+                discoverPacketV6.setAddress(destIP);
+                discoverPacketV6.setPort(MilightBindingConstants.PORT_DISCOVER);
+                try {
+                    datagramSocket.send(discoverPacketV6);
+                } catch (IOException e) {
+                    logger.error("Sending a V6 discovery packet to {} failed. {}", destIP.getHostAddress(),
+                            e.getLocalizedMessage());
+                }
             }
         }
     }
@@ -172,11 +205,17 @@ public class MilightDiscover extends Thread {
      * re-sending discovery packets. Call sendDiscover() to restart sending
      * discovery packets.
      */
-    public void stopResend() {
+    public void stop() {
         if (resendTimer != null) {
             resendTimer.cancel(false);
             resendTimer = null;
         }
+
+        if (willbeclosed) {
+            return;
+        }
+        willbeclosed = true;
+        datagramSocket.close();
     }
 
     /**
@@ -184,17 +223,28 @@ public class MilightDiscover extends Thread {
      * is received or the resend counter reaches the maximum attempts.
      *
      * @param scheduler The scheduler is used for resending.
+     * @throws SocketException
      */
-    public void sendDiscover(ScheduledExecutorService scheduler) {
+    public void startDiscoveryService() {
         // Do nothing if there is already a discovery running
         if (resendTimer != null) {
             return;
         }
 
+        willbeclosed = false;
+        try {
+            datagramSocket = new DatagramSocket(null);
+            datagramSocket.setBroadcast(true);
+            datagramSocket.setReuseAddress(true);
+            datagramSocket.bind(null);
+        } catch (SocketException e) {
+            logger.error("Opening a socket for the milight discovery service failed. {}", e.getLocalizedMessage());
+            return;
+        }
         resendCounter = 0;
-        this.scheduler = scheduler;
         resendTimer = scheduler.scheduleWithFixedDelay(new SendDiscoverRunnable(), 0, resendTimeoutInMillis,
                 TimeUnit.MILLISECONDS);
+        scheduler.execute(this);
     }
 
     @Override
@@ -211,7 +261,6 @@ public class MilightDiscover extends Thread {
                     continue;
                 }
 
-                int version = 3; // Assume version 3
                 // First argument is the IP
                 try {
                     InetAddress.getByName(msg[0]);
@@ -229,8 +278,7 @@ public class MilightDiscover extends Thread {
                 }
 
                 InetAddress addressOfBridge = ((InetSocketAddress) packet.getSocketAddress()).getAddress();
-                if (msg.length == 3) {
-                    version = 6; // It is probably version 6
+                if (ENABLE_V6 && msg.length == 3) {
                     if (!(msg[2].length() == 0 || "HF-LPB100".equals(msg[2]))) {
                         logger.trace("Unexpected data. We expected a HF-LPB100 or empty identifier {}", msg[2]);
                         continue;
@@ -239,10 +287,12 @@ public class MilightDiscover extends Thread {
                         logger.trace("The device at IP {} does not seem to be a V6 Milight bridge", msg[0]);
                         continue;
                     }
+                    bridgeDetected(addressOfBridge, msg[1], 6);
+                } else if (ENABLE_V3 && msg.length == 2) {
+                    bridgeDetected(addressOfBridge, msg[1], 3);
+                } else {
+                    logger.debug("Unexpected data. Expected Milight bridge message");
                 }
-
-                stopResend();
-                discoverResult.bridgeDetected(addressOfBridge, msg[1], version);
             }
         } catch (IOException e) {
             if (willbeclosed) {
@@ -263,32 +313,22 @@ public class MilightDiscover extends Thread {
      * @throws InterruptedException If waiting for the session is interrupted we throw this exception
      */
     private boolean checkForV6Bridge(InetAddress addressOfBridge, String bridgeID) throws InterruptedException {
-        QueuedSend queuedSend;
-        try {
-            queuedSend = new QueuedSend();
-            Semaphore s = new Semaphore(0);
-            MilightV6SessionManager session = new MilightV6SessionManager(queuedSend, bridgeID, scheduler,
-                    (SessionState state) -> {
-                        if (state == SessionState.SESSION_VALID) {
-                            s.release();
-                        }
-                    }, null);
+        Semaphore s = new Semaphore(0);
+        ISessionState sessionState = (SessionState state, InetAddress address) -> {
+            if (state == SessionState.SESSION_VALID) {
+                s.release();
+            }
+            logger.debug("STATE CHANGE", state);
+        };
+
+        try (MilightV6SessionManager session = new MilightV6SessionManager(bridgeID, sessionState, addressOfBridge,
+                MilightBindingConstants.PORT_VER6, MilightV6SessionManager.TIMEOUT_MS, new byte[] { 0, 0 })) {
+            session.start();
             boolean success = s.tryAcquire(1, 1300, TimeUnit.MILLISECONDS);
-            session.dispose();
-            queuedSend.dispose();
             return success;
-        } catch (SocketException e) {
-            logger.debug("Could not create a udp socket", e);
+        } catch (IOException e) {
+            logger.debug("checkForV6Bridge failed", e);
         }
         return false;
-    }
-
-    /**
-     * Perform a discovery on a fixed IP address
-     *
-     * @param addr The IP address
-     */
-    public void setFixedAddr(InetAddress addr) {
-        destIP = addr;
     }
 }

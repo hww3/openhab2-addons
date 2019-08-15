@@ -23,8 +23,32 @@ import org.openhab.binding.darksky.internal.handler.DarkSkyWeatherAndForecastHan
  */
 @NonNullByDefault
 public class DarkSkyWeatherAndForecastConfiguration {
-    public @NonNullByDefault({}) String location;
-    public int forecastHours;
-    public int forecastDays;
-    public int numberOfAlerts;
+
+    private @NonNullByDefault({}) String location;
+    private int forecastHours;
+    private int forecastDays;
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
+    }
+
+    public int getForecastHours() {
+        return forecastHours;
+    }
+
+    public void setForecastHours(int forecastHours) {
+        this.forecastHours = forecastHours;
+    }
+
+    public int getForecastDays() {
+        return forecastDays;
+    }
+
+    public void setForecastDays(int forecastDays) {
+        this.forecastDays = forecastDays;
+    }
 }

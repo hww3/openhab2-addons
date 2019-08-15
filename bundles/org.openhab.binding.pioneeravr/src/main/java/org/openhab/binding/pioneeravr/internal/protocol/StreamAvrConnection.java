@@ -1,10 +1,14 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.pioneeravr.internal.protocol;
 
@@ -29,14 +33,14 @@ import org.eclipse.smarthome.core.types.Command;
 import org.eclipse.smarthome.core.util.HexUtils;
 import org.openhab.binding.pioneeravr.internal.protocol.ParameterizedCommand.ParameterizedCommandType;
 import org.openhab.binding.pioneeravr.internal.protocol.SimpleCommand.SimpleCommandType;
-import org.openhab.binding.pioneeravr.protocol.AvrCommand;
-import org.openhab.binding.pioneeravr.protocol.AvrConnection;
-import org.openhab.binding.pioneeravr.protocol.CommandTypeNotSupportedException;
-import org.openhab.binding.pioneeravr.protocol.event.AvrDisconnectionEvent;
-import org.openhab.binding.pioneeravr.protocol.event.AvrDisconnectionListener;
-import org.openhab.binding.pioneeravr.protocol.event.AvrStatusUpdateEvent;
-import org.openhab.binding.pioneeravr.protocol.event.AvrUpdateListener;
-import org.openhab.binding.pioneeravr.protocol.utils.VolumeConverter;
+import org.openhab.binding.pioneeravr.internal.protocol.avr.AvrCommand;
+import org.openhab.binding.pioneeravr.internal.protocol.avr.AvrConnection;
+import org.openhab.binding.pioneeravr.internal.protocol.avr.CommandTypeNotSupportedException;
+import org.openhab.binding.pioneeravr.internal.protocol.event.AvrDisconnectionEvent;
+import org.openhab.binding.pioneeravr.internal.protocol.event.AvrDisconnectionListener;
+import org.openhab.binding.pioneeravr.internal.protocol.event.AvrStatusUpdateEvent;
+import org.openhab.binding.pioneeravr.internal.protocol.event.AvrUpdateListener;
+import org.openhab.binding.pioneeravr.internal.protocol.utils.VolumeConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,6 +55,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Antoine Besnard - Initial contribution
  * @author Rainer Ostendorf - Initial contribution
+ * @author Leroy Foerster - Listening Mode, Playing Listening Mode
  */
 public abstract class StreamAvrConnection implements AvrConnection {
 
@@ -186,6 +191,11 @@ public abstract class StreamAvrConnection implements AvrConnection {
     }
 
     @Override
+    public boolean sendListeningModeQuery(int zone) {
+        return sendCommand(RequestResponseFactory.getIpControlCommand(SimpleCommandType.LISTENING_MODE_QUERY, zone));
+    }
+
+    @Override
     public boolean sendPowerCommand(Command command, int zone) throws CommandTypeNotSupportedException {
         AvrCommand commandToSend = null;
 
@@ -256,6 +266,23 @@ public abstract class StreamAvrConnection implements AvrConnection {
             String inputSourceValue = ((StringType) command).toString();
             commandToSend = RequestResponseFactory.getIpControlCommand(ParameterizedCommandType.INPUT_CHANNEL_SET, zone)
                     .setParameter(inputSourceValue);
+        } else {
+            throw new CommandTypeNotSupportedException("Command type not supported.");
+        }
+
+        return sendCommand(commandToSend);
+    }
+
+    @Override
+    public boolean sendListeningModeCommand(Command command, int zone) throws CommandTypeNotSupportedException {
+        AvrCommand commandToSend = null;
+
+        if (command == IncreaseDecreaseType.INCREASE) {
+            commandToSend = RequestResponseFactory.getIpControlCommand(SimpleCommandType.LISTENING_MODE_CHANGE_CYCLIC, zone);
+        } else if (command instanceof StringType) {
+            String listeningModeValue = ((StringType) command).toString();
+            commandToSend = RequestResponseFactory.getIpControlCommand(ParameterizedCommandType.LISTENING_MODE_SET, zone)
+                    .setParameter(listeningModeValue);
         } else {
             throw new CommandTypeNotSupportedException("Command type not supported.");
         }

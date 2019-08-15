@@ -48,7 +48,7 @@ public class FritzAhaDiscoveryCallback extends FritzAhaReauthCallback {
      * Constructor
      *
      * @param webIface Webinterface to FRITZ!Box
-     * @param service  Discovery service to call with result.
+     * @param service Discovery service to call with result.
      */
     public FritzAhaDiscoveryCallback(FritzAhaWebInterface webIface, AVMFritzDiscoveryService service) {
         super(WEBSERVICE_PATH, "switchcmd=getdevicelistinfos", webIface, GET, 1);

@@ -1,37 +1,42 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.tado.internal.discovery;
 
-import static org.openhab.binding.tado.TadoBindingConstants.*;
+import static org.openhab.binding.tado.internal.TadoBindingConstants.*;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.eclipse.smarthome.config.discovery.AbstractDiscoveryService;
 import org.eclipse.smarthome.config.discovery.DiscoveryResult;
 import org.eclipse.smarthome.config.discovery.DiscoveryResultBuilder;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
 import org.eclipse.smarthome.core.thing.ThingUID;
-import org.openhab.binding.tado.TadoBindingConstants;
-import org.openhab.binding.tado.handler.TadoHomeHandler;
-import org.openhab.binding.tado.internal.api.TadoClientException;
+import org.openhab.binding.tado.internal.TadoBindingConstants;
+import org.openhab.binding.tado.internal.api.ApiException;
 import org.openhab.binding.tado.internal.api.model.MobileDevice;
 import org.openhab.binding.tado.internal.api.model.Zone;
+import org.openhab.binding.tado.internal.handler.TadoHomeHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.collect.ImmutableSet;
 
 /**
  * Discovery service for zones and mobile devices.
@@ -46,8 +51,8 @@ public class TadoDiscoveryService extends AbstractDiscoveryService {
 
     private ScheduledFuture<?> discoveryFuture;
 
-    public final static Set<ThingTypeUID> DISCOVERABLE_THING_TYPES_UIDS = ImmutableSet.of(THING_TYPE_ZONE,
-            THING_TYPE_MOBILE_DEVICE);
+    public final static Set<ThingTypeUID> DISCOVERABLE_THING_TYPES_UIDS = Collections
+            .unmodifiableSet(Stream.of(THING_TYPE_ZONE, THING_TYPE_MOBILE_DEVICE).collect(Collectors.toSet()));
 
     private TadoHomeHandler homeHandler;
 
@@ -103,7 +108,7 @@ public class TadoDiscoveryService extends AbstractDiscoveryService {
                     notifyZoneDiscovery(homeId, zone);
                 }
             }
-        } catch (IOException | TadoClientException e) {
+        } catch (IOException | ApiException e) {
             logger.debug("Could not discover tado zones: {}", e.getMessage(), e);
         }
     }
@@ -137,7 +142,7 @@ public class TadoDiscoveryService extends AbstractDiscoveryService {
                     }
                 }
             }
-        } catch (IOException | TadoClientException e) {
+        } catch (IOException | ApiException e) {
             logger.debug("Could not discover tado zones: {}", e.getMessage(), e);
         }
     }

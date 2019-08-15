@@ -24,8 +24,7 @@ import org.eclipse.smarthome.core.thing.ThingTypeUID;
  * used across the whole binding.
  *
  * @author Paul Frank - Initial contribution
- * @author Pauli Anttila - update for openhab 2
- * @author Stewart Cossey - add additional receiver models
+ * @author Pauli Anttila
  */
 @NonNullByDefault
 public class OnkyoBindingConstants {

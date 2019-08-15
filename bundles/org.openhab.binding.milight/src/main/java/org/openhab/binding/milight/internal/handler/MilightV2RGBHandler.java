@@ -1,14 +1,23 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.milight.internal.protocol;
+package org.openhab.binding.milight.internal.handler;
 
+import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.smarthome.core.thing.Thing;
 import org.openhab.binding.milight.internal.MilightThingState;
+import org.openhab.binding.milight.internal.protocol.ProtocolConstants;
+import org.openhab.binding.milight.internal.protocol.QueueItem;
+import org.openhab.binding.milight.internal.protocol.QueuedSend;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,14 +27,26 @@ import org.slf4j.LoggerFactory;
  * and can only be add manually in the things file.
  *
  * @author David Graeff - Initial contribution
- * @since 2.0
  */
-public class MilightV2RGB extends AbstractBulbInterface {
-    protected final Logger logger = LoggerFactory.getLogger(MilightV2RGB.class);
+@NonNullByDefault
+public class MilightV2RGBHandler extends AbstractLedHandler {
+    protected final Logger logger = LoggerFactory.getLogger(MilightV2RGBHandler.class);
     protected static final int BR_LEVELS = 9;
 
-    public MilightV2RGB(QueuedSend sendQueue, int zone) {
-        super(5, sendQueue, zone);
+    public MilightV2RGBHandler(Thing thing, QueuedSend sendQueue) {
+        super(thing, sendQueue, 5);
+    }
+
+    protected QueueItem createRepeatable(byte[] data) {
+        return QueueItem.createRepeatable(socket, delayTimeMS, repeatTimes, address, port, data);
+    }
+
+    protected QueueItem createRepeatable(int uidc, byte[] data) {
+        return new QueueItem(socket, uidc, data, true, delayTimeMS, repeatTimes, address, port);
+    }
+
+    protected QueueItem createNonRepeatable(byte[] data) {
+        return QueueItem.createNonRepeatable(socket, delayTimeMS, address, port, data);
     }
 
     // We have no real saturation control for RGB bulbs. If the saturation is under a 50% threshold
@@ -37,7 +58,8 @@ public class MilightV2RGB extends AbstractBulbInterface {
         } else {
             setPower(true, state);
             state.hue360 = hue;
-            sendQueue.queueRepeatable(uidc(CAT_COLOR_SET), new byte[] { 0x20, MilightV3.makeColor(hue), 0x55 });
+            sendQueue.queue(createRepeatable(uidc(ProtocolConstants.CAT_COLOR_SET),
+                    new byte[] { 0x20, AbstractLedV3Handler.makeColor(hue), 0x55 }));
 
             if (brightness != -1) {
                 setBrightness(brightness, state);
@@ -52,7 +74,7 @@ public class MilightV2RGB extends AbstractBulbInterface {
             byte messageBytes[] = null;
             // message rgb bulbs ON
             messageBytes = new byte[] { 0x22, 0x00, 0x55 };
-            sendQueue.queueRepeatable(uidc(CAT_POWER_SET), messageBytes);
+            sendQueue.queue(createRepeatable(uidc(ProtocolConstants.CAT_POWER_MODE), messageBytes));
         } else {
             logger.debug("milight: sendOff");
             byte messageBytes[] = null;
@@ -60,7 +82,7 @@ public class MilightV2RGB extends AbstractBulbInterface {
             // message rgb bulbs OFF
             messageBytes = new byte[] { 0x21, 0x00, 0x55 };
 
-            sendQueue.queueRepeatable(uidc(CAT_POWER_SET), messageBytes);
+            sendQueue.queue(createRepeatable(uidc(ProtocolConstants.CAT_POWER_MODE), messageBytes));
         }
     }
 
@@ -82,6 +104,10 @@ public class MilightV2RGB extends AbstractBulbInterface {
 
     @Override
     public void setSaturation(int value, MilightThingState state) {
+    }
+
+    @Override
+    public void changeSaturation(int relativeSaturation, MilightThingState state) {
     }
 
     @Override
@@ -129,7 +155,7 @@ public class MilightV2RGB extends AbstractBulbInterface {
             int steps = (int) Math.abs(Math.floor(relativeBrightness * BR_LEVELS / 100.0));
             for (int s = 0; s < steps; ++s) {
                 byte[] t = { (byte) (relativeBrightness < 0 ? 0x24 : 0x23), 0x00, 0x55 };
-                sendQueue.queue(QueueItem.createNonRepeatable(t));
+                sendQueue.queue(createNonRepeatable(t));
             }
         }
         state.brightness = newPercent;
@@ -142,15 +168,14 @@ public class MilightV2RGB extends AbstractBulbInterface {
     @Override
     public void previousAnimationMode(MilightThingState state) {
         setPower(true, state);
-        sendQueue.queue(QueueItem.createNonRepeatable(new byte[] { 0x28, 0x00, 0x55 }));
+        sendQueue.queue(createNonRepeatable(new byte[] { 0x28, 0x00, 0x55 }));
         state.animationMode = Math.min(state.animationMode - 1, 0);
     }
 
     @Override
     public void nextAnimationMode(MilightThingState state) {
         setPower(true, state);
-        sendQueue.queue(QueueItem.createNonRepeatable(new byte[] { 0x27, 0x00, 0x55 }));
+        sendQueue.queue(createNonRepeatable(new byte[] { 0x27, 0x00, 0x55 }));
         state.animationMode = Math.max(state.animationMode + 1, 100);
     }
-
 }

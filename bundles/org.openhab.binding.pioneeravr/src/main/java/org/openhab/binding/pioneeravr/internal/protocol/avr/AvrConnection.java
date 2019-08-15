@@ -1,21 +1,26 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.pioneeravr.protocol;
+package org.openhab.binding.pioneeravr.internal.protocol.avr;
 
 import org.eclipse.smarthome.core.types.Command;
-import org.openhab.binding.pioneeravr.protocol.event.AvrDisconnectionListener;
-import org.openhab.binding.pioneeravr.protocol.event.AvrUpdateListener;
+import org.openhab.binding.pioneeravr.internal.protocol.event.AvrDisconnectionListener;
+import org.openhab.binding.pioneeravr.internal.protocol.event.AvrUpdateListener;
 
 /**
  * Represent a connection to a remote Pioneer AVR.
  *
  * @author Antoine Besnard - Initial contribution
+ * @author Leroy Foerster - Listening Mode, Playing Listening Mode
  */
 public interface AvrConnection {
 
@@ -84,6 +89,14 @@ public interface AvrConnection {
     public boolean sendSourceInputQuery(int zone);
 
     /**
+     * Send a listening mode state query to the AVR
+     *
+     * @param zone
+     * @return
+     */
+    public boolean sendListeningModeQuery(int zone);
+
+    /**
      * Send a power command ot the AVR based on the openHAB command
      *
      * @param command
@@ -109,6 +122,15 @@ public interface AvrConnection {
      * @return
      */
     public boolean sendInputSourceCommand(Command command, int zone) throws CommandTypeNotSupportedException;
+
+    /**
+     * Send a listening mode selection command to the AVR based on the openHAB command
+     *
+     * @param command
+     * @param zone
+     * @return
+     */
+    public boolean sendListeningModeCommand(Command command, int zone) throws CommandTypeNotSupportedException;
 
     /**
      * Send a mute command to the AVR based on the openHAB command

@@ -1,10 +1,14 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.loxone.internal;
 
@@ -28,23 +32,21 @@ import org.slf4j.LoggerFactory;
  *
  * @author Pawel Pieczul - Initial contribution
  */
-@Component(service = { DynamicStateDescriptionProvider.class, LoxoneDynamicStateDescriptionProvider.class })
+@Component(service = { DynamicStateDescriptionProvider.class, LxDynamicStateDescriptionProvider.class })
 @NonNullByDefault
-public class LoxoneDynamicStateDescriptionProvider implements DynamicStateDescriptionProvider {
+public class LxDynamicStateDescriptionProvider implements DynamicStateDescriptionProvider {
 
     private Map<ChannelUID, StateDescription> descriptions = new ConcurrentHashMap<>();
-    private Logger logger = LoggerFactory.getLogger(LoxoneDynamicStateDescriptionProvider.class);
+    private Logger logger = LoggerFactory.getLogger(LxDynamicStateDescriptionProvider.class);
 
     /**
      * Set a state description for a channel. This description will be used when preparing the channel state by
      * the framework for presentation. A previous description, if existed, will be replaced.
      *
-     * @param channelUID
-     *            channel UID
-     * @param description
-     *            state description for the channel
+     * @param channelUID  channel UID
+     * @param description state description for the channel
      */
-    public void setDescription(ChannelUID channelUID, StateDescription description) {
+    void setDescription(ChannelUID channelUID, StateDescription description) {
         logger.debug("Adding state description for channel {}", channelUID);
         descriptions.put(channelUID, description);
     }
@@ -52,9 +54,19 @@ public class LoxoneDynamicStateDescriptionProvider implements DynamicStateDescri
     /**
      * Clear all registered state descriptions
      */
-    public void removeAllDescriptions() {
+    void removeAllDescriptions() {
         logger.debug("Removing all state descriptions");
         descriptions.clear();
+    }
+
+    /**
+     * Removes a state description for a given channel ID
+     *
+     * @param channelUID channel ID to remove description for
+     */
+    void removeDescription(ChannelUID channelUID) {
+        logger.debug("Removing state description for channel {}", channelUID);
+        descriptions.remove(channelUID);
     }
 
     @Override

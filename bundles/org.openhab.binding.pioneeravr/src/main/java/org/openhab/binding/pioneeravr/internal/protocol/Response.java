@@ -1,10 +1,14 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.pioneeravr.internal.protocol;
 
@@ -12,13 +16,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang.StringUtils;
-import org.openhab.binding.pioneeravr.protocol.AvrConnectionException;
-import org.openhab.binding.pioneeravr.protocol.AvrResponse;
+import org.openhab.binding.pioneeravr.internal.protocol.avr.AvrConnectionException;
+import org.openhab.binding.pioneeravr.internal.protocol.avr.AvrResponse;
 
 /**
  * Represent an AVR response.
  *
  * @author Antoine Besnard - Initial contribution
+ * @author Leroy Foerster - Listening Mode, Playing Listening Mode
  */
 public class Response implements AvrResponse {
 
@@ -30,6 +35,8 @@ public class Response implements AvrResponse {
         VOLUME_LEVEL("[0-9]{2,3}", "VOL", "ZV", "YV", "HZV"),
         MUTE_STATE("[0-1]", "MUT", "Z2MUT", "Z3MUT", "HZM"),
         INPUT_SOURCE_CHANNEL("[0-9]{2}", "FN", "Z2F", "Z3F", "ZEA"),
+        LISTENING_MODE("[0-9]{4}", "SR"),
+        PLAYING_LISTENING_MODE("[0-9a-f]{4}", "LM"),
         DISPLAY_INFORMATION("[0-9a-fA-F]{30}", "FL");
 
         private String[] responsePrefixZone;

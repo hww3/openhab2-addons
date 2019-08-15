@@ -188,11 +188,6 @@ public abstract class BaseKeypadHandler extends LutronHandler {
         synchronized (asyncInitLock) {
             logger.debug("Async init thread staring for keypad handler {}", integrationId);
 
-            buttonList.clear(); // in case we are re-initializing
-            ledList.clear();
-            cciList.clear();
-            componentChannelMap.clear();
-
             configureComponents(model);
 
             // load the channel-id map
@@ -291,7 +286,7 @@ public abstract class BaseKeypadHandler extends LutronHandler {
             }
             return;
         }
-
+        
         // Contact channels for CCIs are read-only, so ignore commands
         if (isCCI(componentID)) {
             logger.debug("Invalid command type {} received for channel {} device {}", command, channelUID,

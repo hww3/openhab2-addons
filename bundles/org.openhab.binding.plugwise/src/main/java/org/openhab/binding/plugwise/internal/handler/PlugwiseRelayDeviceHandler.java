@@ -1,31 +1,42 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.plugwise.handler;
+package org.openhab.binding.plugwise.internal.handler;
 
+import static java.util.stream.Collectors.*;
 import static org.eclipse.smarthome.core.thing.ThingStatus.*;
-import static org.openhab.binding.plugwise.PlugwiseBindingConstants.*;
+import static org.openhab.binding.plugwise.internal.PlugwiseBindingConstants.*;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
+import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.smarthome.config.core.Configuration;
 import org.eclipse.smarthome.core.library.types.OnOffType;
 import org.eclipse.smarthome.core.library.types.QuantityType;
 import org.eclipse.smarthome.core.library.types.StringType;
 import org.eclipse.smarthome.core.library.unit.SmartHomeUnits;
+import org.eclipse.smarthome.core.thing.Bridge;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingStatusDetail;
 import org.eclipse.smarthome.core.types.Command;
+import org.eclipse.smarthome.core.types.UnDefType;
 import org.openhab.binding.plugwise.internal.PlugwiseDeviceTask;
 import org.openhab.binding.plugwise.internal.PlugwiseUtils;
 import org.openhab.binding.plugwise.internal.config.PlugwiseRelayConfig;
@@ -56,8 +67,6 @@ import org.openhab.binding.plugwise.internal.protocol.field.PowerCalibration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.collect.Lists;
-
 /**
  * <p>
  * The {@link PlugwiseRelayDeviceHandler} handles channel updates and commands for a Plugwise device with a relay.
@@ -77,9 +86,9 @@ import com.google.common.collect.Lists;
  * A Stealth behaves like a Circle but it has a more compact form factor.
  * </p>
  *
- * @author Karel Goderis
- * @author Wouter Born - Initial contribution
+ * @author Wouter Born, Karel Goderis - Initial contribution
  */
+@NonNullByDefault
 public class PlugwiseRelayDeviceHandler extends AbstractPlugwiseThingHandler {
 
     private static final int INVALID_WATT_THRESHOLD = 10000;
@@ -213,19 +222,22 @@ public class PlugwiseRelayDeviceHandler extends AbstractPlugwiseThingHandler {
         }
     };
 
-    private final List<PlugwiseDeviceTask> recurringTasks = Lists.newArrayList(clockUpdateTask, currentPowerUpdateTask,
-            energyUpdateTask, informationUpdateTask, realTimeClockUpdateTask, setClockTask);
+    private final List<PlugwiseDeviceTask> recurringTasks = Stream
+            .of(clockUpdateTask, currentPowerUpdateTask, energyUpdateTask, informationUpdateTask,
+                    realTimeClockUpdateTask, setClockTask)
+            .collect(collectingAndThen(toList(), Collections::unmodifiableList));
 
     private final Logger logger = LoggerFactory.getLogger(PlugwiseRelayDeviceHandler.class);
+    private final DeviceType deviceType;
 
-    private PlugwiseRelayConfig configuration;
-    private DeviceType deviceType;
-    private MACAddress macAddress;
-
-    private PowerCalibration calibration;
-    private Energy energy;
     private int recentLogAddress = -1;
-    private PendingPowerStateChange pendingPowerStateChange;
+
+    private @NonNullByDefault({}) PlugwiseRelayConfig configuration;
+    private @NonNullByDefault({}) MACAddress macAddress;
+
+    private @Nullable PowerCalibration calibration;
+    private @Nullable Energy energy;
+    private @Nullable PendingPowerStateChange pendingPowerStateChange;
 
     // Flag that keeps track of the pending "measurement interval" device configuration update. When the corresponding
     // Thing configuration parameter changes it is set to true. When the Circle/Stealth goes online a command is sent to
@@ -364,20 +376,21 @@ public class PlugwiseRelayDeviceHandler extends AbstractPlugwiseThingHandler {
         recentLogAddress = message.getLogAddress();
         OnOffType powerState = message.getPowerState() ? OnOffType.ON : OnOffType.OFF;
 
-        if (pendingPowerStateChange != null) {
-            if (powerState == pendingPowerStateChange.onOff) {
+        PendingPowerStateChange change = pendingPowerStateChange;
+        if (change != null) {
+            if (powerState == change.onOff) {
                 pendingPowerStateChange = null;
             } else {
                 // Power state change message may be lost or the informationUpdateTask may have queried the power
                 // state just before the power state change message arrived
-                if (pendingPowerStateChange.retries < POWER_STATE_RETRIES) {
-                    pendingPowerStateChange.retries++;
-                    logger.warn("Retrying to switch {} ({}) {} (retry #{})", deviceType, macAddress,
-                            pendingPowerStateChange.onOff, pendingPowerStateChange.retries);
-                    handleOnOffCommand(pendingPowerStateChange.onOff);
+                if (change.retries < POWER_STATE_RETRIES) {
+                    change.retries++;
+                    logger.warn("Retrying to switch {} ({}) {} (retry #{})", deviceType, macAddress, change.onOff,
+                            change.retries);
+                    handleOnOffCommand(change.onOff);
                 } else {
-                    logger.warn("Failed to switch {} ({}) {} after {} retries", deviceType, macAddress,
-                            pendingPowerStateChange.onOff, pendingPowerStateChange.retries);
+                    logger.warn("Failed to switch {} ({}) {} after {} retries", deviceType, macAddress, change.onOff,
+                            change.retries);
                     pendingPowerStateChange = null;
                 }
             }
@@ -405,7 +418,8 @@ public class PlugwiseRelayDeviceHandler extends AbstractPlugwiseThingHandler {
     }
 
     private void handlePowerBufferResponse(PowerBufferResponseMessage message) {
-        if (!isCalibrated()) {
+        PowerCalibration localCalibration = calibration;
+        if (localCalibration == null) {
             calibrate();
             return;
         }
@@ -419,12 +433,14 @@ public class PlugwiseRelayDeviceHandler extends AbstractPlugwiseThingHandler {
 
             boolean isLastInterval = mostRecentEnergy.getEnd().isAfter(oneIntervalAgo);
             if (isLastInterval) {
+                mostRecentEnergy.setInterval(configuration.getMeasurementInterval());
                 energy = mostRecentEnergy;
-                energy.setInterval(configuration.getMeasurementInterval());
                 logger.trace("Updating {} ({}) energy with: {}", deviceType, macAddress, mostRecentEnergy);
-                updateState(CHANNEL_ENERGY,
-                        new QuantityType<>(correctSign(energy.tokWh(calibration)), SmartHomeUnits.KILOWATT_HOUR));
-                updateState(CHANNEL_ENERGY_STAMP, PlugwiseUtils.newDateTimeType(energy.getStart()));
+                updateState(CHANNEL_ENERGY, new QuantityType<>(correctSign(mostRecentEnergy.tokWh(localCalibration)),
+                        SmartHomeUnits.KILOWATT_HOUR));
+                LocalDateTime start = mostRecentEnergy.getStart();
+                updateState(CHANNEL_ENERGY_STAMP,
+                        start != null ? PlugwiseUtils.newDateTimeType(start) : UnDefType.NULL);
             } else {
                 logger.trace("Most recent energy in buffer of {} ({}) is older than one interval ago: {}", deviceType,
                         macAddress, mostRecentEnergy);
@@ -435,13 +451,14 @@ public class PlugwiseRelayDeviceHandler extends AbstractPlugwiseThingHandler {
     }
 
     private void handlePowerInformationResponse(PowerInformationResponseMessage message) {
-        if (!isCalibrated()) {
+        PowerCalibration localCalibration = calibration;
+        if (localCalibration == null) {
             calibrate();
             return;
         }
 
         Energy one = message.getOneSecond();
-        double watt = one.toWatt(calibration);
+        double watt = one.toWatt(localCalibration);
         if (watt > INVALID_WATT_THRESHOLD) {
             logger.debug("{} ({}) is in a kind of error state, skipping power information response", deviceType,
                     macAddress);
@@ -532,7 +549,8 @@ public class PlugwiseRelayDeviceHandler extends AbstractPlugwiseThingHandler {
         super.sendConfigurationUpdateCommands();
     }
 
-    private void setUpdateCommandFlags(PlugwiseRelayConfig oldConfiguration, PlugwiseRelayConfig newConfiguration) {
+    private void setUpdateCommandFlags(@Nullable PlugwiseRelayConfig oldConfiguration,
+            PlugwiseRelayConfig newConfiguration) {
         boolean fullUpdate = newConfiguration.isUpdateConfiguration() && !isConfigurationPending();
         if (fullUpdate) {
             logger.debug("Updating all configuration properties of {} ({})", deviceType, macAddress);
@@ -547,7 +565,8 @@ public class PlugwiseRelayDeviceHandler extends AbstractPlugwiseThingHandler {
 
     @Override
     protected boolean shouldOnlineTaskBeScheduled() {
-        return !configuration.isTemporarilyNotInNetwork() && (getBridge().getStatus() == ONLINE);
+        Bridge bridge = getBridge();
+        return !configuration.isTemporarilyNotInNetwork() && (bridge != null && bridge.getStatus() == ONLINE);
     }
 
     @Override
@@ -572,7 +591,7 @@ public class PlugwiseRelayDeviceHandler extends AbstractPlugwiseThingHandler {
     };
 
     @Override
-    protected void updateStatus(ThingStatus status, ThingStatusDetail statusDetail, String description) {
+    protected void updateStatus(ThingStatus status, ThingStatusDetail statusDetail, @Nullable String description) {
         super.updateStatus(status, statusDetail, description);
 
         if (status == ONLINE) {

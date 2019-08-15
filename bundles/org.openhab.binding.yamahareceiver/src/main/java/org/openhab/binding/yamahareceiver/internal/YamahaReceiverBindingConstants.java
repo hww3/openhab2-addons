@@ -1,26 +1,30 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.yamahareceiver;
+package org.openhab.binding.yamahareceiver.internal;
 
 import java.util.Collections;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
-
-import com.google.common.collect.Sets;
 
 /**
  * The {@link YamahaReceiverBindingConstants} class defines common constants, which are
  * used across the whole binding.
  *
- * @author David Graeff <david.graeff@web.de>
+ * @author David Graeff - Initial contribution
  * @author Tomasz Maruszak - DAB support, Spotify support, refactoring
  */
 @NonNullByDefault
@@ -41,8 +45,13 @@ public class YamahaReceiverBindingConstants {
     public static final String CHANNEL_SURROUND = "surroundProgram";
     public static final String CHANNEL_VOLUME = "volume";
     public static final String CHANNEL_VOLUME_DB = "volumeDB";
-    public static final String CHANNEL_DIALOGUE_LEVEL = "dialogueLevel";
     public static final String CHANNEL_MUTE = "mute";
+    public static final String CHANNEL_SCENE = "scene";
+    public static final String CHANNEL_DIALOGUE_LEVEL = "dialogueLevel";
+
+    public static final String CHANNEL_PARTY_MODE = "party_mode";
+    public static final String CHANNEL_PARTY_MODE_MUTE = "party_mode_mute";
+    public static final String CHANNEL_PARTY_MODE_VOLUME = "party_mode_volume";
 
     // List of channel IDs for navigation control: Read/Write
     public static final String CHANNEL_NAVIGATION_MENU = "navigation_menu"; // Navigate either in the current menu
@@ -59,10 +68,11 @@ public class YamahaReceiverBindingConstants {
     public static final String CHANNEL_NAVIGATION_CURRENT_ITEM = "navigation_current_item"; // DecType
     public static final String CHANNEL_NAVIGATION_TOTAL_ITEMS = "navigation_total_items"; // DecType
 
-    public static final Set<String> CHANNELS_NAVIGATION = Sets.newHashSet(CHANNEL_NAVIGATION_MENU,
-            CHANNEL_NAVIGATION_CURRENT_ITEM, CHANNEL_NAVIGATION_UPDOWN, CHANNEL_NAVIGATION_LEFTRIGHT,
-            CHANNEL_NAVIGATION_SELECT, CHANNEL_NAVIGATION_BACK, CHANNEL_NAVIGATION_BACKTOROOT, CHANNEL_NAVIGATION_LEVEL,
-            CHANNEL_NAVIGATION_TOTAL_ITEMS);
+    public static final Set<String> CHANNELS_NAVIGATION = Collections.unmodifiableSet(Stream
+            .of(CHANNEL_NAVIGATION_MENU, CHANNEL_NAVIGATION_CURRENT_ITEM, CHANNEL_NAVIGATION_UPDOWN,
+                    CHANNEL_NAVIGATION_LEFTRIGHT, CHANNEL_NAVIGATION_SELECT, CHANNEL_NAVIGATION_BACK,
+                    CHANNEL_NAVIGATION_BACKTOROOT, CHANNEL_NAVIGATION_LEVEL, CHANNEL_NAVIGATION_TOTAL_ITEMS)
+            .collect(Collectors.toSet()));
 
     // List of channel IDs for Tuner DAB control
     public static final String CHANNEL_TUNER_BAND = "tuner_band"; // band name for DAB tuner; RW
@@ -79,12 +89,12 @@ public class YamahaReceiverBindingConstants {
     public static final String CHANNEL_PLAYBACK_SONG = "playback_song";
     public static final String CHANNEL_PLAYBACK_SONG_IMAGE_URL = "playback_song_image_url";
 
-    public static final Set<String> CHANNELS_PLAYBACK = Sets.newHashSet(CHANNEL_PLAYBACK, CHANNEL_PLAYBACK_STATION,
-            CHANNEL_PLAYBACK_ARTIST, CHANNEL_PLAYBACK_ALBUM, CHANNEL_PLAYBACK_SONG, CHANNEL_PLAYBACK_SONG_IMAGE_URL);
+    public static final Set<String> CHANNELS_PLAYBACK = Collections.unmodifiableSet(
+            Stream.of(CHANNEL_PLAYBACK, CHANNEL_PLAYBACK_STATION, CHANNEL_PLAYBACK_ARTIST, CHANNEL_PLAYBACK_ALBUM,
+                    CHANNEL_PLAYBACK_SONG, CHANNEL_PLAYBACK_SONG_IMAGE_URL).collect(Collectors.toSet()));
 
     public static final String UPNP_TYPE = "MediaRenderer";
     public static final String UPNP_MANUFACTURER = "YAMAHA";
-
 
     public static class Configs {
         public static final String CONFIG_HOST_NAME = "host";
@@ -124,6 +134,10 @@ public class YamahaReceiverBindingConstants {
         NET_RADIO,
         USB,
         /**
+         * Model RX-V3900 has this and it represents NET_RADIO and USB
+         */
+        NET_USB,
+        /**
          * Model HTR-xxxx has a Zone_2 concept but realized as an extension to Main_Zone
          */
         ZONE_B
@@ -141,7 +155,8 @@ public class YamahaReceiverBindingConstants {
         public static final String INPUT_SPOTIFY = "Spotify";
         public static final String INPUT_BLUETOOTH = "Bluetooth";
         public static final String INPUT_NET_RADIO = "NET RADIO";
-        // Note (TM): We should only 'NET RADIO' (as the canonical input name), the NET_RADIO seems to be only used in the XML nodes when commands are sent.
+        // Note (TM): We should only 'NET RADIO' (as the canonical input name), the NET_RADIO seems to be only used in
+        // the XML nodes when commands are sent.
         public static final String INPUT_NET_RADIO_LEGACY = "NET_RADIO";
         public static final String INPUT_MUSIC_CAST_LINK = "MusicCast Link";
         public static final String INPUT_SERVER = "SERVER";
@@ -161,4 +176,8 @@ public class YamahaReceiverBindingConstants {
     public static final String VALUE_NA = "N/A";
     /** Empty value that is used when the string channel value is not available */
     public static final String VALUE_EMPTY = "";
+
+    public static class Models {
+        public static final String RX_A2000 = "RX-A2000";
+    }
 }

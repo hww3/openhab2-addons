@@ -1,10 +1,14 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.pioneeravr.internal.handler;
 
@@ -22,20 +26,20 @@ import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.types.Command;
 import org.eclipse.smarthome.core.types.UnDefType;
-import org.openhab.binding.pioneeravr.PioneerAvrBindingConstants;
+import org.openhab.binding.pioneeravr.internal.PioneerAvrBindingConstants;
 import org.openhab.binding.pioneeravr.internal.protocol.RequestResponseFactory;
-import org.openhab.binding.pioneeravr.protocol.AvrConnection;
-import org.openhab.binding.pioneeravr.protocol.AvrConnectionException;
-import org.openhab.binding.pioneeravr.protocol.AvrResponse;
-import org.openhab.binding.pioneeravr.protocol.CommandTypeNotSupportedException;
-import org.openhab.binding.pioneeravr.protocol.event.AvrDisconnectionEvent;
-import org.openhab.binding.pioneeravr.protocol.event.AvrDisconnectionListener;
-import org.openhab.binding.pioneeravr.protocol.event.AvrStatusUpdateEvent;
-import org.openhab.binding.pioneeravr.protocol.event.AvrUpdateListener;
-import org.openhab.binding.pioneeravr.protocol.states.MuteStateValues;
-import org.openhab.binding.pioneeravr.protocol.states.PowerStateValues;
-import org.openhab.binding.pioneeravr.protocol.utils.DisplayInformationConverter;
-import org.openhab.binding.pioneeravr.protocol.utils.VolumeConverter;
+import org.openhab.binding.pioneeravr.internal.protocol.avr.AvrConnection;
+import org.openhab.binding.pioneeravr.internal.protocol.avr.AvrConnectionException;
+import org.openhab.binding.pioneeravr.internal.protocol.avr.AvrResponse;
+import org.openhab.binding.pioneeravr.internal.protocol.avr.CommandTypeNotSupportedException;
+import org.openhab.binding.pioneeravr.internal.protocol.event.AvrDisconnectionEvent;
+import org.openhab.binding.pioneeravr.internal.protocol.event.AvrDisconnectionListener;
+import org.openhab.binding.pioneeravr.internal.protocol.event.AvrStatusUpdateEvent;
+import org.openhab.binding.pioneeravr.internal.protocol.event.AvrUpdateListener;
+import org.openhab.binding.pioneeravr.internal.protocol.states.MuteStateValues;
+import org.openhab.binding.pioneeravr.internal.protocol.states.PowerStateValues;
+import org.openhab.binding.pioneeravr.internal.protocol.utils.DisplayInformationConverter;
+import org.openhab.binding.pioneeravr.internal.protocol.utils.VolumeConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,6 +48,7 @@ import org.slf4j.LoggerFactory;
  * AVR connection.
  *
  * @author Antoine Besnard - Initial contribution
+ * @author Leroy Foerster - Listening Mode, Playing Listening Mode
  */
 public abstract class AbstractAvrHandler extends BaseThingHandler
         implements AvrUpdateListener, AvrDisconnectionListener {
@@ -116,6 +121,7 @@ public abstract class AbstractAvrHandler extends BaseThingHandler
         connection.sendVolumeQuery(zone);
         connection.sendMuteQuery(zone);
         connection.sendSourceInputQuery(zone);
+        connection.sendListeningModeQuery(zone);
     }
 
     /**
@@ -127,6 +133,8 @@ public abstract class AbstractAvrHandler extends BaseThingHandler
         updateState(getChannelUID(PioneerAvrBindingConstants.VOLUME_DB_CHANNEL, zone), UnDefType.UNDEF);
         updateState(getChannelUID(PioneerAvrBindingConstants.VOLUME_DIMMER_CHANNEL, zone), UnDefType.UNDEF);
         updateState(getChannelUID(PioneerAvrBindingConstants.SET_INPUT_SOURCE_CHANNEL, zone), UnDefType.UNDEF);
+        updateState(getChannelUID(PioneerAvrBindingConstants.LISTENING_MODE_CHANNEL, zone), UnDefType.UNDEF);
+        updateState(getChannelUID(PioneerAvrBindingConstants.PLAYING_LISTENING_MODE_CHANNEL, zone), UnDefType.UNDEF);
     }
 
     /**
@@ -164,6 +172,8 @@ public abstract class AbstractAvrHandler extends BaseThingHandler
                 commandSent = connection.sendVolumeCommand(command, getZoneFromChannelUID(channelUID.getId()));
             } else if (channelUID.getId().contains(PioneerAvrBindingConstants.SET_INPUT_SOURCE_CHANNEL)) {
                 commandSent = connection.sendInputSourceCommand(command, getZoneFromChannelUID(channelUID.getId()));
+            } else if (channelUID.getId().contains(PioneerAvrBindingConstants.LISTENING_MODE_CHANNEL)) {
+                commandSent = connection.sendListeningModeCommand(command, getZoneFromChannelUID(channelUID.getId()));
             } else if (channelUID.getId().contains(PioneerAvrBindingConstants.MUTE_CHANNEL)) {
                 commandSent = connection.sendMuteCommand(command, getZoneFromChannelUID(channelUID.getId()));
             } else {
@@ -202,6 +212,14 @@ public abstract class AbstractAvrHandler extends BaseThingHandler
 
                 case INPUT_SOURCE_CHANNEL:
                     manageInputSourceChannelUpdate(response);
+                    break;
+
+                case LISTENING_MODE:
+                    manageListeningModeUpdate(response);
+                    break;
+
+                case PLAYING_LISTENING_MODE:
+                    managePlayingListeningModeUpdate(response);
                     break;
 
                 case DISPLAY_INFORMATION:
@@ -281,6 +299,26 @@ public abstract class AbstractAvrHandler extends BaseThingHandler
      */
     private void manageInputSourceChannelUpdate(AvrResponse response) {
         updateState(getChannelUID(PioneerAvrBindingConstants.SET_INPUT_SOURCE_CHANNEL, response.getZone()),
+                new StringType(response.getParameterValue()));
+    }
+
+    /**
+     * Notify an AVR now-playing, in-effect listening mode (audio output format) update to openHAB
+     *
+     * @param response
+     */
+    private void managePlayingListeningModeUpdate(AvrResponse response) {
+        updateState(getChannelUID(PioneerAvrBindingConstants.PLAYING_LISTENING_MODE_CHANNEL, response.getZone()),
+                new StringType(response.getParameterValue()));
+    }
+
+    /**
+     * Notify an AVR set listening mode (user-selected audio mode) update to openHAB
+     *
+     * @param response
+     */
+    private void manageListeningModeUpdate(AvrResponse response) {
+        updateState(getChannelUID(PioneerAvrBindingConstants.LISTENING_MODE_CHANNEL, response.getZone()),
                 new StringType(response.getParameterValue()));
     }
 

@@ -33,9 +33,9 @@ public class GardenaConfig {
     private String email;
     private String password;
 
-    private Integer sessionTimeout = DEFAULT_SESSION_TIMEOUT;
-    private Integer connectionTimeout = DEFAULT_CONNECTION_TIMEOUT;
-    private Integer refresh = DEFAULT_REFRESH;
+    private transient Integer sessionTimeout = DEFAULT_SESSION_TIMEOUT;
+    private transient Integer connectionTimeout = DEFAULT_CONNECTION_TIMEOUT;
+    private transient Integer refresh = DEFAULT_REFRESH;
 
     public GardenaConfig() {
     }

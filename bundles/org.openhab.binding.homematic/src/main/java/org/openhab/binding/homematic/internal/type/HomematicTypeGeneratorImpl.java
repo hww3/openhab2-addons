@@ -1,14 +1,18 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.homematic.internal.type;
 
-import static org.openhab.binding.homematic.HomematicBindingConstants.*;
+import static org.openhab.binding.homematic.internal.HomematicBindingConstants.*;
 import static org.openhab.binding.homematic.internal.misc.HomematicConstants.*;
 
 import java.math.BigDecimal;
@@ -33,8 +37,10 @@ import org.eclipse.smarthome.core.thing.DefaultSystemChannelTypeProvider;
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
 import org.eclipse.smarthome.core.thing.type.ChannelDefinition;
+import org.eclipse.smarthome.core.thing.type.ChannelDefinitionBuilder;
 import org.eclipse.smarthome.core.thing.type.ChannelGroupDefinition;
 import org.eclipse.smarthome.core.thing.type.ChannelGroupType;
+import org.eclipse.smarthome.core.thing.type.ChannelGroupTypeBuilder;
 import org.eclipse.smarthome.core.thing.type.ChannelGroupTypeUID;
 import org.eclipse.smarthome.core.thing.type.ChannelKind;
 import org.eclipse.smarthome.core.thing.type.ChannelType;
@@ -68,8 +74,9 @@ public class HomematicTypeGeneratorImpl implements HomematicTypeGenerator {
 
     private HomematicThingTypeProvider thingTypeProvider;
     private HomematicChannelTypeProvider channelTypeProvider;
+    private HomematicChannelGroupTypeProvider channelGroupTypeProvider;
     private HomematicConfigDescriptionProvider configDescriptionProvider;
-    private Map<String, Set<String>> firmwaresByType = new HashMap<String, Set<String>>();
+    private final Map<String, Set<String>> firmwaresByType = new HashMap<String, Set<String>>();
 
     private static final String[] STATUS_DATAPOINT_NAMES = new String[] { DATAPOINT_NAME_UNREACH,
             DATAPOINT_NAME_CONFIG_PENDING, DATAPOINT_NAME_DEVICE_IN_BOOTLOADER, DATAPOINT_NAME_UPDATE_PENDING };
@@ -105,6 +112,15 @@ public class HomematicTypeGeneratorImpl implements HomematicTypeGenerator {
     }
 
     @Reference
+    protected void setChannelGroupTypeProvider(HomematicChannelGroupTypeProvider channelGroupTypeProvider) {
+        this.channelGroupTypeProvider = channelGroupTypeProvider;
+    }
+
+    protected void unsetChannelGroupTypeProvider(HomematicChannelGroupTypeProvider channelGroupTypeProvider) {
+        this.channelGroupTypeProvider = null;
+    }
+
+    @Reference
     protected void setConfigDescriptionProvider(HomematicConfigDescriptionProvider configDescriptionProvider) {
         this.configDescriptionProvider = configDescriptionProvider;
     }
@@ -124,7 +140,7 @@ public class HomematicTypeGeneratorImpl implements HomematicTypeGenerator {
         if (thingTypeProvider != null) {
             ThingTypeUID thingTypeUID = UidUtils.generateThingTypeUID(device);
             ThingType tt = thingTypeProvider.getInternalThingType(thingTypeUID);
-            
+
             if (tt == null || device.isGatewayExtras()) {
                 logger.debug("Generating ThingType for device '{}' with {} datapoints", device.getType(),
                         device.getDatapointCount());
@@ -145,8 +161,8 @@ public class HomematicTypeGeneratorImpl implements HomematicTypeGenerator {
                                     channelTypeProvider.addChannelType(channelType);
                                 }
 
-                                ChannelDefinition channelDef = new ChannelDefinition(dp.getName(),
-                                        channelType.getUID());
+                                ChannelDefinition channelDef = new ChannelDefinitionBuilder(dp.getName(),
+                                        channelType.getUID()).build();
                                 channelDefinitions.add(channelDef);
                             }
                         }
@@ -154,13 +170,13 @@ public class HomematicTypeGeneratorImpl implements HomematicTypeGenerator {
 
                     // generate group
                     ChannelGroupTypeUID groupTypeUID = UidUtils.generateChannelGroupTypeUID(channel);
-                    ChannelGroupType groupType = channelTypeProvider.getInternalChannelGroupType(groupTypeUID);
+                    ChannelGroupType groupType = channelGroupTypeProvider.getInternalChannelGroupType(groupTypeUID);
                     if (groupType == null || device.isGatewayExtras()) {
                         String groupLabel = String.format("%s",
                                 WordUtils.capitalizeFully(StringUtils.replace(channel.getType(), "_", " ")));
-                        groupType = new ChannelGroupType(groupTypeUID, false, groupLabel, null, null,
-                                channelDefinitions);
-                        channelTypeProvider.addChannelGroupType(groupType);
+                        groupType = ChannelGroupTypeBuilder.instance(groupTypeUID, groupLabel)
+                                .withChannelDefinitions(channelDefinitions).build();
+                        channelGroupTypeProvider.addChannelGroupType(groupType);
                         groupTypes.add(groupType);
                     }
 
@@ -242,6 +258,8 @@ public class HomematicTypeGeneratorImpl implements HomematicTypeGenerator {
             channelType = DefaultSystemChannelTypeProvider.SYSTEM_CHANNEL_LOW_BATTERY;
         } else if (dp.getName().equals(VIRTUAL_DATAPOINT_NAME_SIGNAL_STRENGTH)) {
             channelType = DefaultSystemChannelTypeProvider.SYSTEM_CHANNEL_SIGNAL_STRENGTH;
+        } else if (dp.getName().equals(VIRTUAL_DATAPOINT_NAME_BUTTON)) {
+            channelType = DefaultSystemChannelTypeProvider.SYSTEM_BUTTON;
         } else {
             String itemType = MetadataUtils.getItemType(dp);
             String category = MetadataUtils.getCategory(dp, itemType);
@@ -337,25 +355,19 @@ public class HomematicTypeGeneratorImpl implements HomematicTypeGenerator {
                 }
             }
         }
-        
+
         configDescriptionProvider.addConfigDescription(new ConfigDescription(configDescriptionURI, parms, groups));
 
     }
 
     private URI getConfigDescriptionURI(HmDevice device) {
         try {
-            return new URI(String.format("%s:%s", CONFIG_DESCRIPTION_URI_THING_PREFIX, UidUtils.generateThingTypeUID(device)));
+            return new URI(
+                    String.format("%s:%s", CONFIG_DESCRIPTION_URI_THING_PREFIX, UidUtils.generateThingTypeUID(device)));
         } catch (URISyntaxException ex) {
             logger.warn("Can't create configDescriptionURI for device type {}", device.getType());
             return null;
         }
-    }
-
-    /**
-     * Returns true, if the given datapoint is a Thing status.
-     */
-    public static boolean isStatusDatapoint(HmDatapoint dp) {
-        return StringUtils.indexOfAny(dp.getName(), STATUS_DATAPOINT_NAMES) != -1;
     }
 
     /**

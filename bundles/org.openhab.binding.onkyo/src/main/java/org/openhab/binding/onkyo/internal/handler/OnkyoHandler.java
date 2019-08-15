@@ -15,17 +15,11 @@ package org.openhab.binding.onkyo.internal.handler;
 import static org.openhab.binding.onkyo.internal.OnkyoBindingConstants.*;
 
 import java.io.IOException;
-import java.io.StringReader;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 
 import org.eclipse.smarthome.core.audio.AudioHTTPServer;
 import org.eclipse.smarthome.core.library.types.DecimalType;
@@ -46,14 +40,12 @@ import org.eclipse.smarthome.core.thing.binding.ThingHandlerService;
 import org.eclipse.smarthome.core.types.Command;
 import org.eclipse.smarthome.core.types.RefreshType;
 import org.eclipse.smarthome.core.types.State;
-import org.eclipse.smarthome.core.types.StateOption;
 import org.eclipse.smarthome.core.types.UnDefType;
 import org.eclipse.smarthome.io.net.http.HttpUtil;
 import org.eclipse.smarthome.io.transport.upnp.UpnpIOService;
 import org.openhab.binding.onkyo.internal.OnkyoAlbumArt;
 import org.openhab.binding.onkyo.internal.OnkyoConnection;
 import org.openhab.binding.onkyo.internal.OnkyoEventListener;
-import org.openhab.binding.onkyo.internal.OnkyoStateDescriptionProvider;
 import org.openhab.binding.onkyo.internal.ServiceType;
 import org.openhab.binding.onkyo.internal.automation.modules.OnkyoThingActionsService;
 import org.openhab.binding.onkyo.internal.config.OnkyoDeviceConfiguration;
@@ -61,11 +53,6 @@ import org.openhab.binding.onkyo.internal.eiscp.EiscpCommand;
 import org.openhab.binding.onkyo.internal.eiscp.EiscpMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
 
 /**
  * The {@link OnkyoHandler} is responsible for handling commands, which are
@@ -74,7 +61,6 @@ import org.xml.sax.SAXException;
  * @author Paul Frank - Initial contribution
  * @author Marcel Verpaalen - parsing additional commands
  * @author Pauli Anttila - lot of refactoring
- * @author Stewart Cossey - add dynamic state description provider
  */
 public class OnkyoHandler extends UpnpAudioSinkHandler implements OnkyoEventListener {
 
@@ -89,18 +75,13 @@ public class OnkyoHandler extends UpnpAudioSinkHandler implements OnkyoEventList
     private State volumeLevelZone1 = UnDefType.UNDEF;
     private State volumeLevelZone2 = UnDefType.UNDEF;
     private State volumeLevelZone3 = UnDefType.UNDEF;
-    private State lastPowerState = OnOffType.OFF;
-    
-    private final OnkyoStateDescriptionProvider stateDescriptionProvider;
 
-    private final OnkyoAlbumArt onkyoAlbumArt = new OnkyoAlbumArt();
+    private OnkyoAlbumArt onkyoAlbumArt = new OnkyoAlbumArt();
 
     private static final int NET_USB_ID = 43;
 
-    public OnkyoHandler(Thing thing, UpnpIOService upnpIOService, AudioHTTPServer audioHTTPServer, String callbackUrl,
-            OnkyoStateDescriptionProvider stateDescriptionProvider) {
+    public OnkyoHandler(Thing thing, UpnpIOService upnpIOService, AudioHTTPServer audioHTTPServer, String callbackUrl) {
         super(thing, upnpIOService, audioHTTPServer, callbackUrl);
-        this.stateDescriptionProvider = stateDescriptionProvider;
     }
 
     /**
@@ -120,8 +101,6 @@ public class OnkyoHandler extends UpnpAudioSinkHandler implements OnkyoEventList
             connection.openConnection();
             if (connection.isConnected()) {
                 updateStatus(ThingStatus.ONLINE);
-
-                sendCommand(EiscpCommand.INFO_QUERY);
             }
         });
 
@@ -335,29 +314,6 @@ public class OnkyoHandler extends UpnpAudioSinkHandler implements OnkyoEventList
         }
     }
 
-    private void populateInputs(NodeList selectorlist) {
-        List<StateOption> options = new ArrayList<>();
-
-        for (int i = 0; i < selectorlist.getLength(); i++) {
-            Element selectorItem = (Element) selectorlist.item(i);
-
-            options.add(new StateOption(String.valueOf(Integer.parseInt(selectorItem.getAttribute("id"), 16)),
-                    selectorItem.getAttribute("name")));
-        }
-        logger.debug("Got Input List from Receiver {}", options);
-
-        stateDescriptionProvider.setStateOptions(new ChannelUID(getThing().getUID(), CHANNEL_INPUT), options);
-        stateDescriptionProvider.setStateOptions(new ChannelUID(getThing().getUID(), CHANNEL_INPUTZONE2), options);
-        stateDescriptionProvider.setStateOptions(new ChannelUID(getThing().getUID(), CHANNEL_INPUTZONE3), options);
-    }
-
-    private void doPowerOnCheck(State state) {
-        if (configuration.refreshInterval == 0 && lastPowerState == OnOffType.OFF && state == OnOffType.ON) {
-            sendCommand(EiscpCommand.INFO_QUERY);
-        }
-        lastPowerState = state;
-    }
-
     @Override
     public void statusUpdateReceived(String ip, EiscpMessage data) {
         logger.debug("Received status update from Onkyo Receiver @{}: data={}", connection.getConnectionName(), data);
@@ -382,9 +338,7 @@ public class OnkyoHandler extends UpnpAudioSinkHandler implements OnkyoEventList
                  * ZONE 1
                  */
                 case POWER:
-                    State powerState = convertDeviceValueToOpenHabState(data.getValue(), OnOffType.class);
-                    updateState(CHANNEL_POWER, powerState);
-                    doPowerOnCheck(powerState);
+                    updateState(CHANNEL_POWER, convertDeviceValueToOpenHabState(data.getValue(), OnOffType.class));
                     break;
                 case MUTE:
                     updateState(CHANNEL_MUTE, convertDeviceValueToOpenHabState(data.getValue(), OnOffType.class));
@@ -406,9 +360,7 @@ public class OnkyoHandler extends UpnpAudioSinkHandler implements OnkyoEventList
                  * ZONE 2
                  */
                 case ZONE2_POWER:
-                    State powerZone2State = convertDeviceValueToOpenHabState(data.getValue(), OnOffType.class);
-                    updateState(CHANNEL_POWERZONE2, powerZone2State);
-                    doPowerOnCheck(powerZone2State);
+                    updateState(CHANNEL_POWERZONE2, convertDeviceValueToOpenHabState(data.getValue(), OnOffType.class));
                     break;
                 case ZONE2_MUTE:
                     updateState(CHANNEL_MUTEZONE2, convertDeviceValueToOpenHabState(data.getValue(), OnOffType.class));
@@ -427,9 +379,7 @@ public class OnkyoHandler extends UpnpAudioSinkHandler implements OnkyoEventList
                  * ZONE 3
                  */
                 case ZONE3_POWER:
-                    State powerZone3State = convertDeviceValueToOpenHabState(data.getValue(), OnOffType.class);
-                    updateState(CHANNEL_POWERZONE3, powerZone3State);
-                    doPowerOnCheck(powerZone3State);
+                    updateState(CHANNEL_POWERZONE3, convertDeviceValueToOpenHabState(data.getValue(), OnOffType.class));
                     break;
                 case ZONE3_MUTE:
                     updateState(CHANNEL_MUTEZONE3, convertDeviceValueToOpenHabState(data.getValue(), OnOffType.class));
@@ -479,7 +429,6 @@ public class OnkyoHandler extends UpnpAudioSinkHandler implements OnkyoEventList
                  */
 
                 case INFO:
-                    processInfo(data.getValue());
                     logger.debug("Info message: '{}'", data.getValue());
                     break;
 
@@ -493,23 +442,6 @@ public class OnkyoHandler extends UpnpAudioSinkHandler implements OnkyoEventList
             logger.warn("Exception in statusUpdateReceived for Onkyo Receiver @{}. Cause: {}, data received: {}",
                     connection.getConnectionName(), ex.getMessage(), data);
         }
-    }
-
-    private void processInfo(String infoXML) {
-        try {
-            DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            try (StringReader sr = new StringReader(infoXML)) {
-                InputSource is = new InputSource(sr);
-                Document doc = builder.parse(is);
-
-                NodeList selectableInputs = doc.getDocumentElement().getElementsByTagName("selector");
-                populateInputs(selectableInputs);
-            }
-        } catch (ParserConfigurationException | SAXException | IOException e) {
-            logger.debug("Error occured during Info XML parsing.", e);
-        }
-
     }
 
     @Override
@@ -793,7 +725,6 @@ public class OnkyoHandler extends UpnpAudioSinkHandler implements OnkyoEventList
             sendCommand(EiscpCommand.MUTE_QUERY);
             sendCommand(EiscpCommand.NETUSB_TITLE_QUERY);
             sendCommand(EiscpCommand.LISTEN_MODE_QUERY);
-            sendCommand(EiscpCommand.INFO_QUERY);
 
             if (isChannelAvailable(CHANNEL_POWERZONE2)) {
                 sendCommand(EiscpCommand.ZONE2_POWER_QUERY);

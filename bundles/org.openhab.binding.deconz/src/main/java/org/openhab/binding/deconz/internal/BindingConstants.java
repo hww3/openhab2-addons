@@ -74,8 +74,6 @@ public class BindingConstants {
     public static final String CONFIG_HOST = "host";
     public static final String CONFIG_APIKEY = "apikey";
 
-    public static final String UNIQUE_ID = "uid";
-
     public static String url(String host, @Nullable String apikey, @Nullable String endpointType,
             @Nullable String endpointID) {
         StringBuilder url = new StringBuilder();

@@ -1,27 +1,32 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.helios.internal;
 
-import static org.openhab.binding.helios.HeliosBindingConstants.*;
+import static org.openhab.binding.helios.internal.HeliosBindingConstants.*;
 
-import java.util.Collection;
+import java.util.Collections;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandlerFactory;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandlerFactory;
-import org.openhab.binding.helios.handler.HeliosHandler221;
-import org.openhab.binding.helios.handler.HeliosHandler27;
+import org.openhab.binding.helios.internal.handler.HeliosHandler221;
+import org.openhab.binding.helios.internal.handler.HeliosHandler27;
 import org.osgi.service.component.annotations.Component;
-
-import com.google.common.collect.Lists;
 
 /**
  * The {@link HeliosHandlerFactory} is responsible for creating things and thing
@@ -32,8 +37,8 @@ import com.google.common.collect.Lists;
 @Component(service = ThingHandlerFactory.class, configurationPid = "binding.helios")
 public class HeliosHandlerFactory extends BaseThingHandlerFactory {
 
-    private static final Collection<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = Lists
-            .newArrayList(HELIOS_VARIO_IP_2_7_TYPE, HELIOS_VARIO_IP_2_21_TYPE);
+    private static final Set<ThingTypeUID> SUPPORTED_THING_TYPES_UIDS = Collections.unmodifiableSet(
+            Stream.of(HELIOS_VARIO_IP_2_7_TYPE, HELIOS_VARIO_IP_2_21_TYPE).collect(Collectors.toSet()));
 
     @Override
     public boolean supportsThingType(ThingTypeUID thingTypeUID) {

@@ -15,10 +15,10 @@ package org.openhab.binding.onkyo.internal.eiscp;
 /**
  * Represents all possible eISCP commands.
  *
- * @author Thomas.Eichstaedt-Engelen - initial contribution
- * @author Pauli Anttila - add additional commands
- * @author Paul Frank - update for openHAB 2
- * @author Marcel Verpaalen - fix issues with some Zone 2 commands
+ * @author Thomas.Eichstaedt-Engelen
+ * @author Pauli Anttila
+ * @author Paul Frank
+ * @author Marcel Verpaalen
  */
 public enum EiscpCommand {
 

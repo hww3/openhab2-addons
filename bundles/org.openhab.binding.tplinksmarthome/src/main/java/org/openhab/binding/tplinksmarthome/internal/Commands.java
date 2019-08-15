@@ -1,14 +1,19 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.tplinksmarthome.internal;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
+import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.smarthome.core.library.types.HSBType;
 import org.eclipse.smarthome.core.library.types.OnOffType;
 import org.openhab.binding.tplinksmarthome.internal.model.GetRealtime;
@@ -39,10 +44,11 @@ import com.google.gson.Gson;
 @NonNullByDefault
 public class Commands {
 
+    private static final String CONTEXT = "{\"context\":{\"child_ids\":[\"%s\"]},";
     private static final String SYSTEM_GET_SYSINFO = "\"system\":{\"get_sysinfo\":{}}";
     private static final String GET_SYSINFO = "{" + SYSTEM_GET_SYSINFO + "}";
-    private static final String GET_REALTIME_AND_SYSINFO = "{" + SYSTEM_GET_SYSINFO
-            + ", \"emeter\":{\"get_realtime\":{}}}";
+    private static final String REALTIME = "\"emeter\":{\"get_realtime\":{}}";
+    private static final String GET_REALTIME_AND_SYSINFO = "{" + SYSTEM_GET_SYSINFO + ", " + REALTIME + "}";
     private static final String GET_REALTIME_BULB_AND_SYSINFO = "{" + SYSTEM_GET_SYSINFO
             + ", \"smartlife.iot.common.emeter\":{\"get_realtime\":{}}}";
 
@@ -65,6 +71,16 @@ public class Commands {
      */
     public static String getRealtimeBulbAndSysinfo() {
         return GET_REALTIME_BULB_AND_SYSINFO;
+    }
+
+    /**
+     * Returns the json to get the energy and sys info data from an outlet device.
+     *
+     * @param id optional id of the device
+     * @return The json string of the command to send to the device
+     */
+    public static String getRealtimeWithContext(String id) {
+        return String.format(CONTEXT, id) + REALTIME + "}";
     }
 
     /**
@@ -104,11 +120,15 @@ public class Commands {
      * Returns the json for the set_relay_state command to switch on or off.
      *
      * @param onOff the switch state to set
+     * @param childId optional child id if multiple children are supported by a single device
      * @return The json string of the command to send to the device
      */
-    public String setRelayState(OnOffType onOff) {
+    public String setRelayState(OnOffType onOff, @Nullable String childId) {
         SetRelayState relayState = new SetRelayState();
         relayState.setRelayState(onOff);
+        if (childId != null) {
+            relayState.setChildId(childId);
+        }
         return gsonWithExpose.toJson(relayState);
     }
 
@@ -118,7 +138,7 @@ public class Commands {
      * @param relayStateResponse the json string
      * @return The data object containing the state data from the json string
      */
-    public SetRelayState setRelayStateResponse(String relayStateResponse) {
+    public @Nullable SetRelayState setRelayStateResponse(String relayStateResponse) {
         return gsonWithExpose.fromJson(relayStateResponse, SetRelayState.class);
     }
 
@@ -137,20 +157,32 @@ public class Commands {
     /**
      * Returns the json response of the set_switch_state command to the data object.
      *
-     * @param setSwitchStateResponse the json string
+     * @param switchStateResponse the json string
      * @return The data object containing the state data from the json string
      */
-    public SetSwitchState setSwitchStateResponse(String switchStateResponse) {
+    public @Nullable SetSwitchState setSwitchStateResponse(String switchStateResponse) {
         return gsonWithExpose.fromJson(switchStateResponse, SetSwitchState.class);
     }
 
+    /**
+     * Returns the json for the set_brightness command to set the brightness value.
+     *
+     * @param brightness the brightness value to set
+     * @return The json string of the command to send to the device
+     */
     public String setDimmerBrightness(int brightness) {
         SetBrightness setBrightness = new SetBrightness();
         setBrightness.setBrightness(brightness);
         return gsonWithExpose.toJson(setBrightness);
     }
 
-    public HasErrorResponse setDimmerBrightnessResponse(String dimmerBrightnessResponse) {
+    /**
+     * Returns the json response of the set_brightness command to the data object.
+     *
+     * @param dimmerBrightnessResponse the json string
+     * @return The data object containing the state data from the json string
+     */
+    public @Nullable HasErrorResponse setDimmerBrightnessResponse(String dimmerBrightnessResponse) {
         return gsonWithExpose.fromJson(dimmerBrightnessResponse, SetBrightness.class);
     }
 
@@ -174,11 +206,15 @@ public class Commands {
      * Returns the json for the set_led_off command to switch the led of the device on or off.
      *
      * @param onOff the led state to set
+     * @param childId optional child id if multiple children are supported by a single device
      * @return The json string of the command to send to the device
      */
-    public String setLedOn(OnOffType onOff) {
+    public String setLedOn(OnOffType onOff, @Nullable String childId) {
         SetLedOff sLOff = new SetLedOff();
         sLOff.setLed(onOff);
+        if (childId != null) {
+            sLOff.setChildId(childId);
+        }
         return gsonWithExpose.toJson(sLOff);
     }
 
@@ -188,7 +224,7 @@ public class Commands {
      * @param setLedOnResponse the json string
      * @return The data object containing the data from the json string
      */
-    public SetLedOff setLedOnResponse(String setLedOnResponse) {
+    public @Nullable SetLedOff setLedOnResponse(String setLedOnResponse) {
         return gsonWithExpose.fromJson(setLedOnResponse, SetLedOff.class);
     }
 
@@ -252,7 +288,7 @@ public class Commands {
      * @param response the json string
      * @return The data object containing the state data from the json string
      */
-    public TransitionLightStateResponse setTransitionLightStateResponse(String response) {
+    public @Nullable TransitionLightStateResponse setTransitionLightStateResponse(String response) {
         return gson.fromJson(response, TransitionLightStateResponse.class);
     }
 }

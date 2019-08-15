@@ -272,9 +272,7 @@ public class AmbientWeatherEventListener {
         try {
             EventSubscribedJson subscribed = gson.fromJson(jsonData, EventSubscribedJson.class);
             if (subscribed.invalidApiKeys != null) {
-                logger.info("Listener: Invalid keys!! invalidApiKeys={}", subscribed.invalidApiKeys);
-                bridgeHandler.markBridgeOffline("Invalid API keys");
-                return;
+                logger.debug("Listener: Invalid keys!! invalidApiKeys={}", subscribed.invalidApiKeys.toString());
             }
 
             if (subscribed.devices != null && subscribed.devices instanceof ArrayList) {

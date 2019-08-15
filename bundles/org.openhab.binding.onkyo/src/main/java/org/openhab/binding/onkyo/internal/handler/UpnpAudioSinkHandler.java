@@ -206,6 +206,7 @@ public abstract class UpnpAudioSinkHandler extends BaseThingHandler implements A
 
     @Override
     public void onServiceSubscribed(String service, boolean succeeded) {
+
     }
 
     @Override

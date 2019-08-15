@@ -14,8 +14,6 @@ package org.openhab.binding.wifiled.internal.handler;
 
 import static java.lang.Math.max;
 
-import static java.lang.Math.max;
-
 import org.eclipse.smarthome.core.library.types.HSBType;
 import org.eclipse.smarthome.core.library.types.PercentType;
 

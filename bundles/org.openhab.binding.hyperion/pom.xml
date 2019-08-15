@@ -4,14 +4,13 @@
   <modelVersion>4.0.0</modelVersion>
 
   <parent>
-    <groupId>org.openhab.binding</groupId>
-    <artifactId>pom</artifactId>
-    <version>2.4.0-SNAPSHOT</version>
+    <groupId>org.openhab.addons.bundles</groupId>
+    <artifactId>org.openhab.addons.reactor.bundles</artifactId>
+    <version>2.5.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>org.openhab.binding.hyperion</artifactId>
-  <packaging>eclipse-plugin</packaging>
 
-  <name>Hyperion Binding</name>
+  <name>openHAB Add-ons :: Bundles :: Hyperion Binding</name>
 
 </project>

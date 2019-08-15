@@ -1,14 +1,18 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.coolmasternet.handler;
+package org.openhab.binding.coolmasternet.internal.handler;
 
-import static org.openhab.binding.coolmasternet.CoolMasterNetBindingConstants.*;
+import static org.openhab.binding.coolmasternet.internal.CoolMasterNetBindingConstants.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,11 +22,11 @@ import org.eclipse.jdt.annotation.Nullable;
 import org.eclipse.smarthome.core.library.types.DecimalType;
 import org.eclipse.smarthome.core.library.types.OnOffType;
 import org.eclipse.smarthome.core.library.types.StringType;
+import org.eclipse.smarthome.core.thing.Bridge;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.ThingStatusDetail;
-import org.eclipse.smarthome.core.thing.ThingUID;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandler;
 import org.eclipse.smarthome.core.types.Command;
 import org.eclipse.smarthome.core.types.RefreshType;
@@ -38,6 +42,7 @@ import org.slf4j.LoggerFactory;
  * HVAC unit (a single UID on a CoolMasterNet controller.)
  *
  * @author Angus Gratton - Initial contribution
+ * @author Wouter Born - Fix null pointer exceptions
  */
 @NonNullByDefault
 public class HVACHandler extends BaseThingHandler {
@@ -49,7 +54,8 @@ public class HVACHandler extends BaseThingHandler {
     }
 
     private @Nullable ControllerHandler getControllerHandler() {
-        return (ControllerHandler) getBridge().getHandler();
+        Bridge bridge = getBridge();
+        return bridge != null ? (ControllerHandler) bridge.getHandler() : null;
     }
 
     @Override
@@ -59,8 +65,12 @@ public class HVACHandler extends BaseThingHandler {
         ControllerHandler controller = getControllerHandler();
 
         try {
-            if (controller == null || !controller.isConnected()) {
-                ControllerConfiguration config = getBridge().getConfiguration().as(ControllerConfiguration.class);
+            Bridge bridge = getBridge();
+            if (bridge == null) {
+                updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR,
+                        "CoolMasterNet Controller bridge not set");
+            } else if (controller == null || !controller.isConnected()) {
+                ControllerConfiguration config = bridge.getConfiguration().as(ControllerConfiguration.class);
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR,
                         String.format("Could not connect to CoolMasterNet unit %s:%d", config.host, config.port));
             } else {
@@ -88,31 +98,40 @@ public class HVACHandler extends BaseThingHandler {
 
     @Override
     public void initialize() {
-        logger.debug("Initialising CoolMasterNet HVAC handler...");
+        logger.debug("Initializing CoolMasterNet HVAC handler...");
         updateStatus(ThingStatus.ONLINE);
     }
 
     /* Update this HVAC unit's properties from the controller */
     public void refresh() {
-        ThingUID thingUID = getThing().getUID();
-
         String on = query("o");
         if (on != null) {
-            updateState(new ChannelUID(thingUID, ON), "1".equals(on) ? OnOffType.ON : OnOffType.OFF);
+            updateState(ON, "1".equals(on) ? OnOffType.ON : OnOffType.OFF);
         }
-        updateState(new ChannelUID(thingUID, CURRENT_TEMP), new DecimalType(query("a")));
-        updateState(new ChannelUID(thingUID, SET_TEMP), new DecimalType(query("t")));
+
+        String currentTemp = query("a");
+        if (currentTemp != null) {
+            updateState(CURRENT_TEMP, new DecimalType(currentTemp));
+        }
+
+        String setTemp = query("t");
+        if (setTemp != null) {
+            updateState(SET_TEMP, new DecimalType(setTemp));
+        }
+
         String mode = MODE_NUM_TO_STR.get(query("m"));
         if (mode != null) {
-            updateState(new ChannelUID(thingUID, MODE), new StringType(mode));
+            updateState(MODE, new StringType(mode));
         }
+
         String louvre = query("s");
         if (louvre != null) {
-            updateState(new ChannelUID(thingUID, LOUVRE), new StringType(louvre));
+            updateState(LOUVRE, new StringType(louvre));
         }
+
         String fan = FAN_NUM_TO_STR.get(query("f"));
         if (fan != null) {
-            updateState(new ChannelUID(thingUID, FAN_SPEED), new StringType(fan));
+            updateState(FAN_SPEED, new StringType(fan));
         }
     }
 
@@ -124,7 +143,7 @@ public class HVACHandler extends BaseThingHandler {
             try {
                 return controller.sendCommand(command);
             } catch (CoolMasterClientError e) {
-                logger.error("Query {} failed: {}", command, e.getMessage());
+                logger.error("Query '{}' failed: {}", command, e.getMessage());
             }
         }
         return null; /* passing back null sets an invalid value on the channel */

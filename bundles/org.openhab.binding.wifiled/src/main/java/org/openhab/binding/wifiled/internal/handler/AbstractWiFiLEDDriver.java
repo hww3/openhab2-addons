@@ -1,14 +1,18 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.wifiled.handler;
+package org.openhab.binding.wifiled.internal.handler;
 
-import static org.openhab.binding.wifiled.handler.ClassicWiFiLEDDriver.bytesToHex;
+import static org.openhab.binding.wifiled.internal.handler.ClassicWiFiLEDDriver.bytesToHex;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -107,13 +111,12 @@ public abstract class AbstractWiFiLEDDriver {
     public abstract LEDStateDTO getLEDStateDTO() throws IOException;
 
     protected synchronized LEDState getLEDState() throws IOException {
-        try (Socket socket = new Socket(host, port)) {
+        try (Socket socket = new Socket(host, port);
+                DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
+                DataInputStream inputStream = new DataInputStream(socket.getInputStream())) {
             logger.debug("Connected to '{}'", socket);
 
             socket.setSoTimeout(DEFAULT_SOCKET_TIMEOUT);
-
-            DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
-            DataInputStream inputStream = new DataInputStream(socket.getInputStream());
 
             byte[] data = { (byte) 0x81, (byte) 0x8A, (byte) 0x8B, (byte) 0x96 };
             outputStream.write(data);
@@ -125,24 +128,28 @@ public abstract class AbstractWiFiLEDDriver {
 
             // Example response (14 Bytes):
             // 0x81 0x04 0x23 0x26 0x21 0x10 0x45 0x00 0x00 0x00 0x03 0x00 0x00 0x47
-            // ..........^--- On/Off.........R....G....B....WW..
+            // ..........^--- On/Off.........R....G....B....WW........CW
             // ...............^-- PGM...^---SPEED...............
 
             int state = statusBytes[2] & 0xFF; // On/Off
             int program = statusBytes[3] & 0xFF;
             int programSpeed = statusBytes[5] & 0xFF;
 
+            // On factory default the controller can be configured
+            // with a value of 255 but max should be 31.
+            if (programSpeed > 31) {
+                programSpeed = 31;
+            }
+
             int red = statusBytes[6] & 0xFF;
             int green = statusBytes[7] & 0xFF;
             int blue = statusBytes[8] & 0xFF;
             int white = statusBytes[9] & 0xFF;
-            int white2 = protocol == Protocol.LD686 ? statusBytes[10] & 0xFF : 0;
+            int white2 = protocol == Protocol.LD686 ? statusBytes[11] & 0xFF : 0;
 
             logger.debug("RGBW: {},{},{},{}, {}", red, green, blue, white, white2);
 
             return new LEDState(state, program, programSpeed, red, green, blue, white, white2);
-        } catch (Exception e) {
-            throw new IOException(e);
         }
     }
 
@@ -151,20 +158,19 @@ public abstract class AbstractWiFiLEDDriver {
     }
 
     protected synchronized void sendRaw(byte[] data, int delay) throws IOException {
-        try (Socket socket = new Socket(host, port)) {
+        try (Socket socket = new Socket(host, port);
+                DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream())) {
             logger.debug("Connected to '{}'", socket);
 
             socket.setSoTimeout(DEFAULT_SOCKET_TIMEOUT);
-
-            DataOutputStream outputStream = new DataOutputStream(socket.getOutputStream());
 
             sendRaw(data, outputStream);
 
             if (delay > 0) {
                 Thread.sleep(delay);
             }
-        } catch (Exception e) {
-            throw new IOException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

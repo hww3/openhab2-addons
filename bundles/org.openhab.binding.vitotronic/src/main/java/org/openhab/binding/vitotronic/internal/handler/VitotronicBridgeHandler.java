@@ -1,12 +1,16 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.vitotronic.handler;
+package org.openhab.binding.vitotronic.internal.handler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,7 +29,7 @@ import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.ThingStatus;
 import org.eclipse.smarthome.core.thing.binding.BaseBridgeHandler;
 import org.eclipse.smarthome.core.types.Command;
-import org.openhab.binding.vitotronic.VitotronicBindingConfiguration;
+import org.openhab.binding.vitotronic.internal.VitotronicBindingConfiguration;
 import org.openhab.binding.vitotronic.internal.discovery.VitotronicDiscoveryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,7 +49,7 @@ import org.xml.sax.helpers.XMLReaderFactory;
  */
 public class VitotronicBridgeHandler extends BaseBridgeHandler {
 
-    private Logger logger = LoggerFactory.getLogger(VitotronicBridgeHandler.class);
+    private final Logger logger = LoggerFactory.getLogger(VitotronicBridgeHandler.class);
 
     private String ipAddress;
     private int port;
@@ -81,7 +85,6 @@ public class VitotronicBridgeHandler extends BaseBridgeHandler {
     private VitotronicDiscoveryService discoveryService = null;
 
     public void registerDiscoveryService(VitotronicDiscoveryService discoveryService) {
-
         if (discoveryService == null) {
             throw new IllegalArgumentException("It's not allowed to pass a null ThingDiscoveryListener.");
         } else {
@@ -91,23 +94,22 @@ public class VitotronicBridgeHandler extends BaseBridgeHandler {
     }
 
     public void unregisterDiscoveryService() {
-
         discoveryService = null;
         logger.trace("unregister Discovery Service");
-
     }
 
     // Handles Thing discovery
 
     private void createThing(String thingType, String thingID) {
         logger.trace("Create thing Type='{}' id='{}'", thingType, thingID);
-        if (discoveryService != null)
+        if (discoveryService != null) {
             discoveryService.addVitotronicThing(thingType, thingID);
+        }
     }
 
     // Managing ThingHandler
 
-    private Map<String, VitotronicThingHandler> thingHandlerMap = new HashMap<String, VitotronicThingHandler>();
+    private Map<String, VitotronicThingHandler> thingHandlerMap = new HashMap<>();
 
     public void registerVitotronicThingListener(VitotronicThingHandler thingHandler) {
         if (thingHandler == null) {
@@ -120,9 +122,8 @@ public class VitotronicBridgeHandler extends BaseBridgeHandler {
                 updateThingHandlerStatus(thingHandler, this.getStatus());
                 sendSocketData("get " + thingID);
             } else {
-                logger.trace("thingHandler for thing: '{}' allready registerd", thingID);
+                logger.trace("thingHandler for thing: '{}' already registered", thingID);
             }
-
         }
     }
 
@@ -131,8 +132,6 @@ public class VitotronicBridgeHandler extends BaseBridgeHandler {
             String thingID = thingHandler.getThing().getUID().getId();
             if (thingHandlerMap.remove(thingID) == null) {
                 logger.trace("thingHandler for thing: {} not registered", thingID);
-            } else {
-                updateThingHandlerStatus(thingHandler, ThingStatus.OFFLINE);
             }
         }
 
@@ -152,24 +151,19 @@ public class VitotronicBridgeHandler extends BaseBridgeHandler {
 
     private ScheduledFuture<?> pollingJob;
 
-    private Runnable pollingRunnable = new Runnable() {
-        @Override
-        public void run() {
-            logger.trace("Polling job called");
-            if (!isConnect) {
-                startSocketReceiver();
-                try {
-                    Thread.sleep(5000); // Wait for connection .
-                } catch (InterruptedException e) {
-                }
+    private Runnable pollingRunnable = () -> {
+        logger.trace("Polling job called");
+        if (!isConnect) {
+            startSocketReceiver();
+            try {
+                Thread.sleep(5000); // Wait for connection .
+            } catch (InterruptedException e) {
             }
-            if (isConnect) {
-                scanThings();
-                refreshData();
-            }
-
         }
-
+        if (isConnect) {
+            scanThings();
+            refreshData();
+        }
     };
 
     private synchronized void startAutomaticRefresh() {
@@ -180,16 +174,13 @@ public class VitotronicBridgeHandler extends BaseBridgeHandler {
 
     private void refreshData() {
         logger.trace("Job: refresh Data...");
-        String thingId;
-        String channelList;
         for (Map.Entry<String, VitotronicThingHandler> entry : thingHandlerMap.entrySet()) {
-            channelList = entry.getValue().getActiveChannelListAsString();
-            thingId = entry.getValue().getThing().getUID().getId();
+            String channelList = entry.getValue().getActiveChannelListAsString();
+            String thingId = entry.getValue().getThing().getUID().getId();
             if (isConnect && (channelList.length() > 0)) {
                 logger.trace("Get Data for '{}'", thingId);
                 sendSocketData("get " + thingId + " " + channelList);
             }
-
         }
     }
 
@@ -221,7 +212,7 @@ public class VitotronicBridgeHandler extends BaseBridgeHandler {
 
     @Override
     public void initialize() {
-        logger.debug("Initializing Vitotronic bridge handler {}", this.toString());
+        logger.debug("Initializing Vitotronic bridge handler {}", getThing().getUID());
         updateStatus();
         VitotronicBindingConfiguration configuration = getConfigAs(VitotronicBindingConfiguration.class);
         ipAddress = configuration.ipAddress;
@@ -234,13 +225,12 @@ public class VitotronicBridgeHandler extends BaseBridgeHandler {
 
     @Override
     public void dispose() {
-        logger.debug("Dispose Vitottronic bridge handler{}", this.toString());
+        logger.debug("Dispose Vitotronic bridge handler {}", getThing().getUID());
 
         if (pollingJob != null && !pollingJob.isCancelled()) {
             pollingJob.cancel(true);
             pollingJob = null;
         }
-        updateStatus(ThingStatus.OFFLINE); // Set all State to offline
     }
 
     // Connection to adapter
@@ -260,65 +250,61 @@ public class VitotronicBridgeHandler extends BaseBridgeHandler {
         }
     }
 
-    Runnable socketReceiverRunnable = new Runnable() {
+    Runnable socketReceiverRunnable = () -> {
+        logger.trace("Start Background Thread for recieving data from adapter");
+        try {
+            XMLReader xmlReader = XMLReaderFactory.createXMLReader();
+            xmlReader.setContentHandler(new XmlHandler());
+            logger.trace("Start Parser for optolink adapter");
+            xmlReader.parse(new InputSource(inStream));
 
-        @Override
-        public void run() {
-            logger.trace("Start Background Thread for recieving data from adapter");
-            try {
-                XMLReader xmlReader = XMLReaderFactory.createXMLReader();
-                xmlReader.setContentHandler(new xmlHandler());
-                logger.trace("Start Parser for optolink adapter");
-                xmlReader.parse(new InputSource(inStream));
+        } catch (IOException e) {
+            logger.trace("Connection error from optolink adapter");
+        } catch (SAXException e) {
+            logger.trace("XML Parser Error");
 
-            } catch (IOException e) {
-                logger.trace("Connection error from optolink adapter");
-            } catch (SAXException e) {
-                logger.trace("XML Parser Error");
-
-            }
-            updateStatus(ThingStatus.OFFLINE);
-            isConnect = false;
-            try {
-                if (!socket.isClosed())
-                    socket.close();
-            } catch (Exception e) {
-            }
-            logger.trace("Connection to optolink adapter is died ... wait for restart");
         }
-
+        updateStatus(ThingStatus.OFFLINE);
+        isConnect = false;
+        try {
+            if (!socket.isClosed()) {
+                socket.close();
+            }
+        } catch (Exception e) {
+        }
+        logger.trace("Connection to optolink adapter is died ... wait for restart");
     };
 
     private void startSocketReceiver() {
-
         if (!isConnect) {
-
             openSocket();
 
             Thread thread = new Thread(socketReceiverRunnable);
             thread.setName("VitotronicSocketThread");
             thread.start();
         }
-
     }
 
     private void sendSocketData(String message) {
-
         try {
             logger.trace("Send Message {}", message);
-            if (isConnect)
+            if (isConnect) {
+                if (message.matches("^set.*REFRESH$")) {
+                    String[] msgParts = message.split(" ");
+                    String[] thingChannel = msgParts[1].split(":");
+                    message = "get " + thingChannel[0] + " " + thingChannel[1];
+                }
                 out.write((message + "\n").getBytes());
+            }
         } catch (IOException e) {
-            logger.error("Error in sending data to optolink addapter");
+            logger.error("Error in sending data to optolink adapter");
             logger.trace("Diagnostic: ", e);
         }
-
     }
 
     // Handles all data what received from optolink adapter
 
-    public class xmlHandler implements ContentHandler {
-
+    public class XmlHandler implements ContentHandler {
         boolean isData;
         boolean isDefine;
         boolean isThing;
@@ -329,13 +315,11 @@ public class VitotronicBridgeHandler extends BaseBridgeHandler {
         String channelID;
         String description;
         VitotronicThingHandler thingHandler;
-        Set<String> channels = new HashSet<String>();
+        Set<String> channels = new HashSet<>();
 
         @Override
         public void startElement(String uri, String localName, String pName, Attributes attr) throws SAXException {
             try {
-
-                // logger.trace("StartElement: {}", localName);
                 switch (localName) {
                     case "optolink":
                         isConnect = true;
@@ -353,8 +337,9 @@ public class VitotronicBridgeHandler extends BaseBridgeHandler {
                         break;
                     case "thing":
                         isThing = true;
-                        if (isDefine)
+                        if (isDefine) {
                             thingType = attr.getValue("type");
+                        }
                         thingID = attr.getValue("id");
                         channels.clear();
                         thingHandler = thingHandlerMap.get(thingID);
@@ -388,15 +373,15 @@ public class VitotronicBridgeHandler extends BaseBridgeHandler {
 
         @Override
         public void endElement(String uri, String localName, String qName) throws SAXException {
-            // logger.trace("StartElement: {}", localName);
             switch (localName) {
                 case "description":
                     isDescription = false;
                     ;
                     break;
                 case "thing":
-                    if (isDefine)
+                    if (isDefine) {
                         createThing(thingType, thingID);
+                    }
                     isThing = false;
                     thingHandler = null;
                     break;

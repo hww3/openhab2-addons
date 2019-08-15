@@ -12,9 +12,6 @@
  */
 package org.openhab.binding.opensprinkler.internal.api;
 
-import org.openhab.binding.opensprinkler.internal.api.exception.CommunicationApiException;
-import org.openhab.binding.opensprinkler.internal.api.exception.GeneralApiException;
-
 /**
  * The {@link OpenSprinklerApi} interface defines the functions which are
  * controllable on the OpenSprinkler API interface.
@@ -23,25 +20,25 @@ import org.openhab.binding.opensprinkler.internal.api.exception.GeneralApiExcept
  */
 public interface OpenSprinklerApi {
     /**
-     * Whether the devie entered manual mode and accepts API requests to control the stations.
+     * Returns the state of this API connection to the OpenSprinkler device.
      *
      * @return True if this API interface is connected to the Open Sprinkler API. False otherwise.
      */
-    public abstract boolean isManualModeEnabled();
+    public abstract boolean isConnected();
 
     /**
-     * Enters the "manual" mode of the device so that API requests are accepted.
+     * Opens a connection to the OpenSprinkler device.
      *
      * @throws Exception
      */
-    public abstract void enterManualMode() throws CommunicationApiException;
+    public abstract void openConnection() throws Exception;
 
     /**
-     * Disables the manual mode, if it is enabled.
+     * Closes the connection to the OpenSprinkler device.
      *
      * @throws Exception
      */
-    public abstract void leaveManualMode() throws CommunicationApiException;
+    public abstract void closeConnection() throws Exception;
 
     /**
      * Starts a station on the OpenSprinkler device.
@@ -74,7 +71,7 @@ public interface OpenSprinklerApi {
      * @return True if rain is detected, false if not or cannot determine.
      * @throws Exception
      */
-    public abstract boolean isRainDetected() throws GeneralApiException, CommunicationApiException;
+    public abstract boolean isRainDetected() throws Exception;
 
     /**
      * Returns the number of total stations that are controllable from the OpenSprinkler

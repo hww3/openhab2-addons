@@ -25,6 +25,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang.StringUtils;
+import org.eclipse.smarthome.config.discovery.DiscoveryService;
 import org.eclipse.smarthome.core.thing.Bridge;
 import org.eclipse.smarthome.core.thing.ChannelUID;
 import org.eclipse.smarthome.core.thing.Thing;
@@ -39,6 +40,7 @@ import org.openhab.binding.lutron.internal.net.TelnetSessionListener;
 import org.openhab.binding.lutron.internal.protocol.LutronCommand;
 import org.openhab.binding.lutron.internal.protocol.LutronCommandType;
 import org.openhab.binding.lutron.internal.protocol.LutronOperation;
+import org.osgi.framework.ServiceRegistration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,8 +48,7 @@ import org.slf4j.LoggerFactory;
  * Handler responsible for communicating with the main Lutron control hub.
  *
  * @author Allan Tong - Initial contribution
- * @author Bob Adair - Added reconnect and heartbeat config parameters, moved discovery service registration to
- *         LutronHandlerFactory
+ * @author Bob Adair - Added reconnect and heartbeat config parameters
  */
 public class IPBridgeHandler extends BaseBridgeHandler {
     private static final Pattern STATUS_REGEX = Pattern.compile("~(OUTPUT|DEVICE|SYSTEM|TIMECLOCK|MODE),([^,]+),(.*)");
@@ -70,7 +71,6 @@ public class IPBridgeHandler extends BaseBridgeHandler {
     private static final String DEFAULT_PASSWORD = "integration";
     private static final int DEFAULT_RECONNECT_MINUTES = 5;
     private static final int DEFAULT_HEARTBEAT_MINUTES = 5;
-    private static final long KEEPALIVE_TIMEOUT_SECONDS = 30;
 
     private final Logger logger = LoggerFactory.getLogger(IPBridgeHandler.class);
 
@@ -81,21 +81,13 @@ public class IPBridgeHandler extends BaseBridgeHandler {
     private TelnetSession session;
     private BlockingQueue<LutronCommand> sendQueue = new LinkedBlockingQueue<>();
 
-    private Thread messageSender;
+    private ScheduledFuture<?> messageSender;
     private ScheduledFuture<?> keepAlive;
     private ScheduledFuture<?> keepAliveReconnect;
     private ScheduledFuture<?> connectRetryJob;
 
     private Date lastDbUpdateDate;
-    private LutronDeviceDiscoveryService discoveryService;
-
-    public LutronDeviceDiscoveryService getDiscoveryService() {
-        return discoveryService;
-    }
-
-    public void setDiscoveryService(LutronDeviceDiscoveryService discoveryService) {
-        this.discoveryService = discoveryService;
-    }
+    private ServiceRegistration<DiscoveryService> discoveryServiceRegistration;
 
     public class LutronSafemodeException extends Exception {
         private static final long serialVersionUID = 1L;
@@ -103,10 +95,6 @@ public class IPBridgeHandler extends BaseBridgeHandler {
         public LutronSafemodeException(String message) {
             super(message);
         }
-    }
-
-    public IPBridgeConfig getIPBridgeConfig() {
-        return config;
     }
 
     public IPBridgeHandler(Bridge bridge) {
@@ -126,6 +114,10 @@ public class IPBridgeHandler extends BaseBridgeHandler {
         });
     }
 
+    public IPBridgeConfig getIPBridgeConfig() {
+        return this.config;
+    }
+
     @Override
     public void handleCommand(ChannelUID channelUID, Command command) {
     }
@@ -135,22 +127,30 @@ public class IPBridgeHandler extends BaseBridgeHandler {
         this.config = getThing().getConfiguration().as(IPBridgeConfig.class);
 
         if (validConfiguration(this.config)) {
-            reconnectInterval = (config.reconnect > 0) ? config.reconnect : DEFAULT_RECONNECT_MINUTES;
-            heartbeatInterval = (config.heartbeat > 0) ? config.heartbeat : DEFAULT_HEARTBEAT_MINUTES;
+            LutronDeviceDiscoveryService discovery = new LutronDeviceDiscoveryService(this);
+            reconnectInterval = (config.getReconnect() > 0) ? config.getReconnect() : DEFAULT_RECONNECT_MINUTES;
+            heartbeatInterval = (config.getHeartbeat() > 0) ? config.getHeartbeat() : DEFAULT_HEARTBEAT_MINUTES;
 
-            updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.NONE, "Connecting");
-            scheduler.submit(this::connect); // start the async connect task
+            this.discoveryServiceRegistration = this.bundleContext.registerService(DiscoveryService.class, discovery,
+                    null);
+
+            this.scheduler.schedule(new Runnable() {
+                @Override
+                public void run() {
+                    connect();
+                }
+            }, 0, TimeUnit.SECONDS);
         }
     }
 
     private boolean validConfiguration(IPBridgeConfig config) {
-        if (config == null) {
+        if (this.config == null) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, "bridge configuration missing");
 
             return false;
         }
 
-        if (StringUtils.isEmpty(config.ipAddress)) {
+        if (StringUtils.isEmpty(this.config.getIpAddress())) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.CONFIGURATION_ERROR, "bridge address not specified");
 
             return false;
@@ -169,7 +169,7 @@ public class IPBridgeHandler extends BaseBridgeHandler {
             return;
         }
 
-        logger.debug("Connecting to bridge at {}", config.ipAddress);
+        logger.debug("Connecting to bridge at {}", config.getIpAddress());
 
         try {
             if (!login(config)) {
@@ -177,6 +177,15 @@ public class IPBridgeHandler extends BaseBridgeHandler {
 
                 return;
             }
+
+            // Disable prompts
+            sendCommand(new LutronCommand(LutronOperation.EXECUTE, LutronCommandType.MONITORING, -1, MONITOR_PROMPT,
+                    MONITOR_DISABLE));
+
+            // Check the time device database was last updated. On the initial connect, this will trigger
+            // a scan for paired devices.
+            sendCommand(
+                    new LutronCommand(LutronOperation.QUERY, LutronCommandType.SYSTEM, -1, SYSTEM_DBEXPORTDATETIME));
         } catch (LutronSafemodeException e) {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, "main repeater is in safe mode");
             disconnect();
@@ -198,38 +207,34 @@ public class IPBridgeHandler extends BaseBridgeHandler {
             return;
         }
 
+        this.messageSender = this.scheduler.schedule(new Runnable() {
+            @Override
+            public void run() {
+                sendCommands();
+            }
+        }, 0, TimeUnit.SECONDS);
+
         updateStatus(ThingStatus.ONLINE);
 
-        // Disable prompts
-        sendCommand(new LutronCommand(LutronOperation.EXECUTE, LutronCommandType.MONITORING, -1, MONITOR_PROMPT,
-                MONITOR_DISABLE));
-
-        // Check the time device database was last updated. On the initial connect, this will trigger
-        // a scan for paired devices.
-        sendCommand(new LutronCommand(LutronOperation.QUERY, LutronCommandType.SYSTEM, -1, SYSTEM_DBEXPORTDATETIME));
-
-        messageSender = new Thread(this::sendCommandsThread, "Lutron sender");
-        messageSender.start();
-
-        logger.debug("Starting keepAlive job with interval {}", heartbeatInterval);
         keepAlive = scheduler.scheduleWithFixedDelay(this::sendKeepAlive, heartbeatInterval, heartbeatInterval,
                 TimeUnit.MINUTES);
     }
 
-    private void sendCommandsThread() {
+    private void sendCommands() {
         try {
-            while (!Thread.currentThread().isInterrupted()) {
-                LutronCommand command = sendQueue.take();
+            while (true) {
+                LutronCommand command = this.sendQueue.take();
 
                 logger.debug("Sending command {}", command);
 
                 try {
-                    session.writeLine(command.toString());
+                    this.session.writeLine(command.toString());
                 } catch (IOException e) {
-                    logger.warn("Communication error, will try to reconnect. Error: {}", e.getMessage());
+                    logger.error("Communication error, will try to reconnect", e);
                     updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR);
 
-                    sendQueue.add(command); // Requeue command
+                    // Requeue command
+                    this.sendQueue.add(command);
 
                     reconnect();
 
@@ -259,14 +264,14 @@ public class IPBridgeHandler extends BaseBridgeHandler {
             this.keepAliveReconnect.cancel(false);
         }
 
-        if (messageSender != null && messageSender.isAlive()) {
-            messageSender.interrupt();
+        if (this.messageSender != null) {
+            this.messageSender.cancel(true);
         }
 
         try {
             this.session.close();
         } catch (IOException e) {
-            logger.warn("Error disconnecting: {}", e.getMessage());
+            logger.error("Error disconnecting", e);
         }
     }
 
@@ -279,14 +284,14 @@ public class IPBridgeHandler extends BaseBridgeHandler {
     }
 
     private boolean login(IPBridgeConfig config) throws IOException, InterruptedException, LutronSafemodeException {
-        this.session.open(config.ipAddress);
+        this.session.open(config.getIpAddress());
         this.session.waitFor("login:");
 
         // Sometimes the Lutron Smart Bridge Pro will request login more than once.
         for (int attempt = 0; attempt < MAX_LOGIN_ATTEMPTS; attempt++) {
-            this.session.writeLine(config.user != null ? config.user : DEFAULT_USER);
+            this.session.writeLine(config.getUser() != null ? config.getUser() : DEFAULT_USER);
             this.session.waitFor("password:");
-            this.session.writeLine(config.password != null ? config.password : DEFAULT_PASSWORD);
+            this.session.writeLine(config.getPassword() != null ? config.getPassword() : DEFAULT_PASSWORD);
 
             MatchResult matchResult = this.session.waitFor(LOGIN_MATCH_REGEX);
 
@@ -369,7 +374,7 @@ public class IPBridgeHandler extends BaseBridgeHandler {
                     try {
                         handler.handleUpdate(type, paramString.split(","));
                     } catch (Exception e) {
-                        logger.warn("Error processing update: {}", e.getMessage());
+                        logger.error("Error processing update", e);
                     }
                 } else {
                     logger.debug("No thing configured for integration ID {}", integrationId);
@@ -381,12 +386,14 @@ public class IPBridgeHandler extends BaseBridgeHandler {
     }
 
     private void sendKeepAlive() {
-        logger.debug("Scheduling keepalive reconnect job");
-
         // Reconnect if no response is received within 30 seconds.
-        keepAliveReconnect = scheduler.schedule(this::reconnect, KEEPALIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        this.keepAliveReconnect = this.scheduler.schedule(new Runnable() {
+            @Override
+            public void run() {
+                reconnect();
+            }
+        }, 30, TimeUnit.SECONDS);
 
-        logger.trace("Sending keepalive query");
         sendCommand(new LutronCommand(LutronOperation.QUERY, LutronCommandType.SYSTEM, -1, SYSTEM_DBEXPORTDATETIME));
     }
 
@@ -400,20 +407,19 @@ public class IPBridgeHandler extends BaseBridgeHandler {
                 this.lastDbUpdateDate = date;
             }
         } catch (ParseException e) {
-            logger.warn("Failed to parse DB update date {} {}", dateString, timeString);
+            logger.error("Failed to parse DB update date {} {}", dateString, timeString);
         }
     }
 
     private void scanForDevices() {
         try {
-            if (discoveryService != null) {
-                logger.debug("Initiating discovery scan for devices");
-                discoveryService.startScan(null);
-            } else {
-                logger.debug("Unable to initiate discovery because discoveryService is null");
+            DiscoveryService service = this.bundleContext.getService(this.discoveryServiceRegistration.getReference());
+
+            if (service != null) {
+                service.startScan(null);
             }
         } catch (Exception e) {
-            logger.warn("Error scanning for paired devices: ", e.getMessage());
+            logger.error("Error scanning for paired devices", e);
         }
     }
 
@@ -438,5 +444,10 @@ public class IPBridgeHandler extends BaseBridgeHandler {
     @Override
     public void dispose() {
         disconnect();
+
+        if (this.discoveryServiceRegistration != null) {
+            this.discoveryServiceRegistration.unregister();
+            this.discoveryServiceRegistration = null;
+        }
     }
 }

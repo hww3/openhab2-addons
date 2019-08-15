@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <thing:thing-descriptions bindingId="tesla"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xmlns:thing="http://eclipse.org/smarthome/schemas/thing-description/v1.0.0"
-	xsi:schemaLocation="http://eclipse.org/smarthome/schemas/thing-description/v1.0.0 http://eclipse.org/smarthome/schemas/thing-description-1.0.0.xsd">
+	xmlns:thing="https://openhab.org/schemas/thing-description/v1.0.0"
+	xsi:schemaLocation="https://openhab.org/schemas/thing-description/v1.0.0 https://openhab.org/schemas/thing-description-1.0.0.xsd">
 
 	<thing-type id="models">
 		<label>Tesla Model S</label>
@@ -56,6 +56,7 @@
 			<channel id="eventstamp" typeId="eventstamp" />
 			<channel id="fan" typeId="fan" />
 			<channel id="flashlights" typeId="flashlights" />
+			<channel id="forcerefresh" typeId="forcerefresh" />
 			<channel id="frontdefroster" typeId="frontdefroster" />
 			<channel id="fronttrunk" typeId="fronttrunk" />
 			<channel id="gpstimestamp" typeId="gpstimestamp" />
@@ -417,6 +418,11 @@
 		<item-type>Switch</item-type>
 		<label>Flash Lights</label>
 		<description>Flash the lights of the car (when ON is received)</description>
+	</channel-type>
+	<channel-type id="forcerefresh">
+		<item-type>Switch</item-type>
+		<label>Force refresh</label>
+		<description>Forcefully refreshes all data from the car (when ON is received), possibly waking up the car in the process.</description>
 	</channel-type>
 	<channel-type id="frontdefroster" advanced="true">
 		<item-type>Switch</item-type>

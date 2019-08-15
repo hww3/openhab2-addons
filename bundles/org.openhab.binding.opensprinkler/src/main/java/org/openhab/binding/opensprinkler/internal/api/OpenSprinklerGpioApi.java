@@ -31,7 +31,7 @@ public class OpenSprinklerGpioApi implements OpenSprinklerApi {
 
     private boolean[] stationState;
 
-    private boolean isInManualMode = false;
+    private boolean connectionOpen = false;
 
     private final GpioPinDigitalOutput srClkOutputPin;
     private final GpioPinDigitalOutput srNoeOutputPin;
@@ -68,18 +68,18 @@ public class OpenSprinklerGpioApi implements OpenSprinklerApi {
     }
 
     @Override
-    public boolean isManualModeEnabled() {
-        return isInManualMode;
+    public boolean isConnected() {
+        return connectionOpen;
     }
 
     @Override
-    public void enterManualMode() {
-        isInManualMode = true;
+    public void openConnection() {
+        connectionOpen = true;
     }
 
     @Override
-    public void leaveManualMode() {
-        isInManualMode = false;
+    public void closeConnection() {
+        connectionOpen = false;
     }
 
     @Override

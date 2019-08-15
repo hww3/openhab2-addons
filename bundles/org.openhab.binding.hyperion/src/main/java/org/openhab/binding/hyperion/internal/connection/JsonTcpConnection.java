@@ -1,10 +1,14 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.hyperion.internal.connection;
 
@@ -12,6 +16,7 @@ import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.Reader;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
@@ -55,9 +60,10 @@ public class JsonTcpConnection {
 
     public String send(String json) throws IOException {
         String response = null;
-        try (Socket hyperionServer = new Socket(address, port)) {
-            DataOutputStream outToServer = new DataOutputStream(hyperionServer.getOutputStream());
-            BufferedReader inFromServer = new BufferedReader(new InputStreamReader(hyperionServer.getInputStream()));
+        try (Socket hyperionServer = new Socket(address, port);
+                DataOutputStream outToServer = new DataOutputStream(hyperionServer.getOutputStream());
+                Reader isr = new InputStreamReader(hyperionServer.getInputStream());
+                BufferedReader inFromServer = new BufferedReader(isr)) {
             logger.debug("Sending: {}", json);
             outToServer.writeBytes(json + System.lineSeparator());
             outToServer.flush();

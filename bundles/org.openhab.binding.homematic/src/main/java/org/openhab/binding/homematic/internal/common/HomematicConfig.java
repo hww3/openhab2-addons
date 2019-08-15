@@ -1,10 +1,14 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.homematic.internal.common;
 
@@ -44,6 +48,7 @@ public class HomematicConfig {
     private int groupPort;
 
     private String callbackHost;
+    private String bindAddress;
     private int xmlCallbackPort;
     private int binCallbackPort;
 
@@ -52,6 +57,7 @@ public class HomematicConfig {
     private int installModeDuration = DEFAULT_INSTALL_MODE_DURATION;
     private long discoveryTimeToLive = -1;
     private boolean unpairOnDeletion = false;
+    private boolean factoryResetOnDeletion = false;
 
     private HmGatewayInfo gatewayInfo;
 
@@ -81,6 +87,20 @@ public class HomematicConfig {
      */
     public void setCallbackHost(String callbackHost) {
         this.callbackHost = callbackHost;
+    }
+
+    /**
+     * Returns the bind address.
+     */
+    public String getBindAddress() {
+        return bindAddress;
+    }
+
+    /**
+     * Sets the bind address.
+     */
+    public void setBindAddress(String bindAddress) {
+        this.bindAddress = bindAddress;
     }
 
     /**
@@ -190,22 +210,22 @@ public class HomematicConfig {
     public void setGatewayType(String gatewayType) {
         this.gatewayType = gatewayType;
     }
-    
+
     /**
      * Returns time in seconds that the controller will be in install mode when
      * a device discovery is initiated
-     * 
+     *
      * @return time in seconds that the controller remains in install mode
      */
     public int getInstallModeDuration() {
         return installModeDuration;
     }
-    
+
     /**
      * Sets installModeDuration
-     * 
+     *
      * @param installModeDuration time in seconds that the controller remains in
-     *        install mode
+     *            install mode
      */
     public void setInstallModeDuration(int installModeDuration) {
         this.installModeDuration = installModeDuration;
@@ -213,7 +233,7 @@ public class HomematicConfig {
 
     /**
      * Returns if devices are unpaired from the gateway when their corresponding things are removed
-     * 
+     *
      * @return <i>true</i> if devices are unpaired from the gateway when their corresponding things are removed
      */
     public boolean isUnpairOnDeletion() {
@@ -222,12 +242,31 @@ public class HomematicConfig {
 
     /**
      * Sets unpairOnDeletion
-     * 
+     *
      * @param unpairOnDeletion if set to <i>true</i>, devices are unpaired from the gateway when their corresponding
      *            things are removed
      */
     public void setUnpairOnDeletion(boolean unpairOnDeletion) {
         this.unpairOnDeletion = unpairOnDeletion;
+    }
+
+    /**
+     * Returns if devices are factory reset when their corresponding things are removed
+     *
+     * @return <i>true</i> if devices are factory reset when their corresponding things are removed
+     */
+    public boolean isFactoryResetOnDeletion() {
+        return factoryResetOnDeletion;
+    }
+
+    /**
+     * Sets factoryResetOnDeletion
+     *
+     * @param factoryResetOnDeletion if set to <i>true</i>, devices are factory reset when their corresponding things
+     *            are removed
+     */
+    public void setFactoryResetOnDeletion(boolean factoryResetOnDeletion) {
+        this.factoryResetOnDeletion = factoryResetOnDeletion;
     }
 
     /**
@@ -325,7 +364,14 @@ public class HomematicConfig {
     }
 
     /**
-     * Returns the encoding of a Homematic gateway.
+     * Returns true, if a RF port is configured.
+     */
+    public boolean hasRfPort() {
+        return rfPort != 0;
+    }
+
+    /**
+     * Returns the encoding that is suitable on requests to & responds from the Homematic gateway.
      */
     public String getEncoding() {
         if (gatewayInfo != null && gatewayInfo.isHomegear()) {
@@ -353,11 +399,12 @@ public class HomematicConfig {
     public String toString() {
         ToStringBuilder tsb = new ToStringBuilder(this, ToStringStyle.SHORT_PREFIX_STYLE);
         tsb.append("gatewayAddress", gatewayAddress).append("callbackHost", callbackHost)
-                .append("xmlCallbackPort", xmlCallbackPort).append("binCallbackPort", binCallbackPort)
-                .append("gatewayType", gatewayType).append("rfPort", getRfPort()).append("wiredPort", getWiredPort())
-                .append("hmIpPort", getHmIpPort()).append("cuxdPort", getCuxdPort()).append("groupPort", getGroupPort())
-                .append("timeout", timeout).append("discoveryTimeToLive", discoveryTimeToLive)
-                .append("installModeDuration", installModeDuration).append("socketMaxAlive", socketMaxAlive);
+                .append("bindAddress", bindAddress).append("xmlCallbackPort", xmlCallbackPort)
+                .append("binCallbackPort", binCallbackPort).append("gatewayType", gatewayType)
+                .append("rfPort", getRfPort()).append("wiredPort", getWiredPort()).append("hmIpPort", getHmIpPort())
+                .append("cuxdPort", getCuxdPort()).append("groupPort", getGroupPort()).append("timeout", timeout)
+                .append("discoveryTimeToLive", discoveryTimeToLive).append("installModeDuration", installModeDuration)
+                .append("socketMaxAlive", socketMaxAlive);
         return tsb.toString();
     }
 }

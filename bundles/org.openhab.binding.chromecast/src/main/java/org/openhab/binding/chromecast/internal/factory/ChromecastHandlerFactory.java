@@ -19,11 +19,6 @@ import java.util.Hashtable;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import java.util.Dictionary;
-import java.util.Hashtable;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-
 import org.eclipse.smarthome.core.audio.AudioHTTPServer;
 import org.eclipse.smarthome.core.audio.AudioSink;
 import org.eclipse.smarthome.core.net.HttpServiceUtil;

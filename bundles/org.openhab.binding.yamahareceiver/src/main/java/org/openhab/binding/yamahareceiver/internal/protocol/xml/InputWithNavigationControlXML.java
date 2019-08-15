@@ -1,21 +1,27 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.yamahareceiver.internal.protocol.xml;
 
 import java.io.IOException;
 
-import org.openhab.binding.yamahareceiver.YamahaReceiverBindingConstants;
+import org.openhab.binding.yamahareceiver.internal.YamahaReceiverBindingConstants;
 import org.openhab.binding.yamahareceiver.internal.protocol.AbstractConnection;
 import org.openhab.binding.yamahareceiver.internal.protocol.InputWithNavigationControl;
 import org.openhab.binding.yamahareceiver.internal.protocol.ReceivedMessageParseException;
+import org.openhab.binding.yamahareceiver.internal.state.DeviceInformationState;
 import org.openhab.binding.yamahareceiver.internal.state.NavigationControlState;
 import org.openhab.binding.yamahareceiver.internal.state.NavigationControlStateListener;
+import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
@@ -54,12 +60,12 @@ public class InputWithNavigationControlXML extends AbstractInputControlXML imple
      * @param state We need the current navigation state, because most navigation commands are relative commands and we
      *            offer API with absolute values.
      * @param inputID The input ID like USB or NET_RADIO.
-     * @param com The Yamaha communication object to send http requests.
+     * @param con The Yamaha communication object to send http requests.
      */
-    public InputWithNavigationControlXML(NavigationControlState state, String inputID, AbstractConnection com,
-            NavigationControlStateListener observer) {
+    public InputWithNavigationControlXML(NavigationControlState state, String inputID, AbstractConnection con,
+            NavigationControlStateListener observer, DeviceInformationState deviceInformationState) {
 
-        super(inputID, com);
+        super(LoggerFactory.getLogger(InputWithNavigationControlXML.class), inputID, con, deviceInformationState);
 
         this.state = state;
         this.observer = observer;
@@ -67,6 +73,7 @@ public class InputWithNavigationControlXML extends AbstractInputControlXML imple
 
     /**
      * Sends a cursor command to Yamaha.
+     *
      * @param command
      * @throws IOException
      * @throws ReceivedMessageParseException
@@ -85,7 +92,6 @@ public class InputWithNavigationControlXML extends AbstractInputControlXML imple
     public void goBack() throws IOException, ReceivedMessageParseException {
         navigateCursor("Back");
     }
-
 
     /**
      * Navigate up
@@ -153,7 +159,8 @@ public class InputWithNavigationControlXML extends AbstractInputControlXML imple
         } else {
             navigateCursor("Back to Home");
             if (state.menuLayer > 0) {
-                observer.navigationError("The going back to root command failed for your receiver. Trying to use a different command.");
+                observer.navigationError(
+                        "The going back to root command failed for your receiver. Trying to use a different command.");
                 useAlternativeBackToHomeCmd = true;
                 return goToRoot();
             }
@@ -249,7 +256,8 @@ public class InputWithNavigationControlXML extends AbstractInputControlXML imple
 
             int index = findItemOnCurrentPage(name);
             if (index > 0) {
-                com.send(wrInput("<List_Control><Direct_Sel>Line_" + String.valueOf(index) + "</Direct_Sel></List_Control>"));
+                com.send(wrInput(
+                        "<List_Control><Direct_Sel>Line_" + String.valueOf(index) + "</Direct_Sel></List_Control>"));
                 update();
                 return true;
             }
@@ -318,7 +326,8 @@ public class InputWithNavigationControlXML extends AbstractInputControlXML imple
         state.maxLine = maxLines;
 
         for (int i = 1; i < 8; ++i) {
-            state.items[i - 1] = XMLUtils.getNodeContentOrDefault(currentMenu, "Current_List/Line_" + i + "/Txt", (String) null);
+            state.items[i - 1] = XMLUtils.getNodeContentOrDefault(currentMenu, "Current_List/Line_" + i + "/Txt",
+                    (String) null);
         }
 
         if (observer != null) {

@@ -29,7 +29,6 @@ import org.slf4j.LoggerFactory;
  * Class to handle Onkyo Album Arts.
  *
  * @author Pauli Anttila - Initial contribution
- * @author Stewart Cossey - fixed bug in getAlbumArt function
  */
 public class OnkyoAlbumArt {
 

@@ -336,7 +336,8 @@ public class SpotifyBridgeHandler extends BaseBridgeHandler
 
                 handleCommand.setLists(devices, playlists);
                 updatePlayerInfo(playingContext, playlists);
-                spotifyDynamicStateDescriptionProvider.setPlayList(playlists);
+                spotifyDynamicStateDescriptionProvider
+                        .setPlayList(playlists == null ? Collections.emptyList() : playlists);
 
                 updateDevicesStatus(devices, playingContext.isPlaying());
                 return true;
@@ -352,7 +353,7 @@ public class SpotifyBridgeHandler extends BaseBridgeHandler
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getMessage());
             } catch (RuntimeException e) {
                 // This only should catch RuntimeException as the apiCall don't throw other exceptions.
-                logger.info("Unexpected error during polling status, please report if this keeps occurring: ", e);
+                logger.info("Unexpected error during polling status, please report if this keeps ocurring: ", e);
 
                 updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.NONE, e.getMessage());
             }

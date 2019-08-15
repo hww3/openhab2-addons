@@ -1,10 +1,14 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.tplinksmarthome.internal;
 
@@ -15,7 +19,6 @@ import java.util.stream.Collectors;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
-import org.openhab.binding.tplinksmarthome.TPLinkSmartHomeBindingConstants;
 
 /**
  * ThingType enum with all supported TP-Link Smart Home devices.
@@ -24,7 +27,7 @@ import org.openhab.binding.tplinksmarthome.TPLinkSmartHomeBindingConstants;
  *
  */
 @NonNullByDefault
-enum TPLinkSmartHomeThingType {
+public enum TPLinkSmartHomeThingType {
 
     // Bulb Thing Type UIDs
     KB100("kb100", DeviceType.BULB),
@@ -35,9 +38,13 @@ enum TPLinkSmartHomeThingType {
     LB130("lb130", DeviceType.BULB),
     LB200("lb200", DeviceType.BULB),
     LB230("lb230", DeviceType.BULB),
+    KL110("kl110", DeviceType.BULB),
+    KL120("kl120", DeviceType.BULB),
+    KL130("kl130", DeviceType.BULB),
 
     // Plug Thing Type UIDs
     HS100("hs100", DeviceType.PLUG),
+    HS103("hs103", DeviceType.PLUG),
     HS105("hs105", DeviceType.PLUG),
     HS110("hs110", DeviceType.PLUG),
     KP100("kp100", DeviceType.PLUG),
@@ -48,6 +55,12 @@ enum TPLinkSmartHomeThingType {
 
     // Dimmer Thing Type UIDs
     HS220("hs220", DeviceType.DIMMER),
+
+    // Power Strip Thing Type UIDs.
+    HS107("hs107", DeviceType.STRIP),
+    HS300("hs300", DeviceType.STRIP),
+    KP200("kp200", DeviceType.STRIP),
+    KP400("kp400", DeviceType.STRIP),
 
     // Range Extender Thing Type UIDs
     RE270K("re270", DeviceType.RANGE_EXTENDER),
@@ -92,6 +105,29 @@ enum TPLinkSmartHomeThingType {
     }
 
     /**
+     * Returns true if the given {@link ThingTypeUID} matches a device that is a range extender.
+     *
+     * @param thingTypeUID if the check
+     * @return true if it's a range extender
+     */
+    public static boolean isRangeExtenderDevice(ThingTypeUID thingTypeUID) {
+        return SUPPORTED_THING_TYPES_LIST.stream().filter(t -> t.is(thingTypeUID))
+                .anyMatch(t -> t.type == DeviceType.RANGE_EXTENDER);
+    }
+
+    /**
+     * Returns true if the given {@link ThingTypeUID} matches a device that supports the power strip communication
+     * protocol.
+     *
+     * @param thingTypeUID if the check
+     * @return true if it's a power strip supporting device
+     */
+    public static boolean isStripDevice(ThingTypeUID thingTypeUID) {
+        return SUPPORTED_THING_TYPES_LIST.stream().filter(t -> t.is(thingTypeUID))
+                .anyMatch(t -> t.type == DeviceType.STRIP);
+    }
+
+    /**
      * Returns true if the given {@link ThingTypeUID} matches a device that supports the switching communication
      * protocol.
      *
@@ -101,17 +137,6 @@ enum TPLinkSmartHomeThingType {
     public static boolean isSwitchingDevice(ThingTypeUID thingTypeUID) {
         return SUPPORTED_THING_TYPES_LIST.stream().filter(t -> t.is(thingTypeUID))
                 .anyMatch(t -> t.type == DeviceType.PLUG || t.type == DeviceType.SWITCH);
-    }
-
-    /**
-     * Returns true if the given {@link ThingTypeUID} matches a device that is a range extender.
-     *
-     * @param thingTypeUID if the check
-     * @return true if it's a range extender
-     */
-    public static boolean isRangeExtenderDevice(ThingTypeUID thingTypeUID) {
-        return SUPPORTED_THING_TYPES_LIST.stream().filter(t -> t.is(thingTypeUID))
-                .anyMatch(t -> t.type == DeviceType.RANGE_EXTENDER);
     }
 
     /**
@@ -144,6 +169,10 @@ enum TPLinkSmartHomeThingType {
          * Wi-Fi range extender device with plug.
          */
         RANGE_EXTENDER,
+        /**
+         * Power strip device.
+         */
+        STRIP,
         /**
          * Switch device.
          */

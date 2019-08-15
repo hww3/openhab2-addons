@@ -122,7 +122,7 @@ public abstract class AbstractMQTTThingHandler extends BaseThingHandler implemen
         future.exceptionally(e -> {
             updateStatus(ThingStatus.OFFLINE, ThingStatusDetail.COMMUNICATION_ERROR, e.getLocalizedMessage());
             return false;
-        }).thenRun(() -> logger.debug("Successfully published value {} to topic {}", command, data.getCommandTopic()));
+        }).thenRun(() -> logger.debug("Successfully published value {} to topic {}", command, data.getStateTopic()));
     }
 
     @Override
@@ -205,22 +205,12 @@ public abstract class AbstractMQTTThingHandler extends BaseThingHandler implemen
 
     @Override
     public void dispose() {
-        stop();
-        try {
-            unsubscribeAll().get(500, TimeUnit.MILLISECONDS);
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            logger.warn("unsubcription on disposal failed for {}: ", thing.getUID(), e);
+        MqttBrokerConnection connection = this.connection;
+        if (connection != null) {
+            connection.unsubscribeAll();
         }
-        connection = null;
         super.dispose();
     }
-
-    /**
-     * this method must unsubscribe all topics used by this thing handler
-     *
-     * @return
-     */
-    public abstract CompletableFuture<Void> unsubscribeAll();
 
     @Override
     public void updateChannelState(ChannelUID channelUID, State value) {

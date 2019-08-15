@@ -278,8 +278,7 @@ public class SpotifyApi {
             final String accessToken = accessTokenResponse == null ? null : accessTokenResponse.getAccessToken();
 
             if (accessToken == null || accessToken.isEmpty()) {
-                throw new SpotifyAuthorizationException(
-                        "No spotify accesstoken. Did you authorize spotify via /connectspotify ?");
+                throw new SpotifyAuthorizationException("No spotify accesstoken. Is this thing authorized?");
             } else {
                 return requestWithRetry(call, accessToken);
             }

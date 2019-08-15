@@ -33,7 +33,7 @@ import org.osgi.service.component.annotations.ConfigurationPolicy;
  *
  * @author Matthew Bowman - Initial contribution
  */
-@Component(service = ThingHandlerFactory.class, configurationPid = "binding.unifi")
+@Component(service = ThingHandlerFactory.class, immediate = true, configurationPid = "binding.unifi", configurationPolicy = ConfigurationPolicy.OPTIONAL)
 public class UniFiThingHandlerFactory extends BaseThingHandlerFactory {
 
     private HttpClient httpClient;

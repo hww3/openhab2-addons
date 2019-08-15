@@ -13,10 +13,11 @@
 package org.openhab.binding.mqtt.homie.internal.discovery;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.eclipse.jdt.annotation.Nullable;
@@ -28,7 +29,6 @@ import org.openhab.binding.mqtt.discovery.AbstractMQTTDiscovery;
 import org.openhab.binding.mqtt.discovery.MQTTTopicDiscoveryService;
 import org.openhab.binding.mqtt.generic.tools.WaitForTopicValue;
 import org.openhab.binding.mqtt.homie.generic.internal.MqttBindingConstants;
-import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
 import org.osgi.service.component.annotations.Reference;
 import org.slf4j.Logger;
@@ -45,17 +45,26 @@ import org.slf4j.LoggerFactory;
 public class Homie300Discovery extends AbstractMQTTDiscovery {
     private final Logger logger = LoggerFactory.getLogger(Homie300Discovery.class);
 
-    protected final MQTTTopicDiscoveryService discoveryService;
+    public Homie300Discovery() {
+        super(Stream.of(MqttBindingConstants.HOMIE300_MQTT_THING).collect(Collectors.toSet()), 3, true, "+/+/$homie");
+    }
 
-    @Activate
-    public Homie300Discovery(@Reference MQTTTopicDiscoveryService discoveryService) {
-        super(Collections.singleton(MqttBindingConstants.HOMIE300_MQTT_THING), 3, true, "+/+/$homie");
-        this.discoveryService = discoveryService;
+    @NonNullByDefault({})
+    protected MQTTTopicDiscoveryService mqttTopicDiscovery;
+
+    @Reference
+    public void setMQTTTopicDiscoveryService(MQTTTopicDiscoveryService service) {
+        mqttTopicDiscovery = service;
+    }
+
+    public void unsetMQTTTopicDiscoveryService(@Nullable MQTTTopicDiscoveryService service) {
+        mqttTopicDiscovery.unsubscribe(this);
+        this.mqttTopicDiscovery = null;
     }
 
     @Override
     protected MQTTTopicDiscoveryService getDiscoveryService() {
-        return discoveryService;
+        return mqttTopicDiscovery;
     }
 
     /**
@@ -91,21 +100,21 @@ public class Homie300Discovery extends AbstractMQTTDiscovery {
             return;
         }
 
+        publishDevice(connectionBridge, connection, deviceID, topic);
+
         // Retrieve name and update found discovery
         try {
             WaitForTopicValue w = new WaitForTopicValue(connection, topic.replace("$homie", "$name"));
             w.waitForTopicValueAsync(scheduler, 700).thenAccept(name -> {
-                publishDevice(connectionBridge, connection, deviceID, topic, name);
+                publishDevice(connectionBridge, connection, deviceID, name);
             });
         } catch (InterruptedException | ExecutionException ignored) {
-            // The name is nice to have, but not required, use deviceId as fallback
-            publishDevice(connectionBridge, connection, deviceID, topic, deviceID);
+            // The name is nice to have, but not required
         }
 
     }
 
-    void publishDevice(ThingUID connectionBridge, MqttBrokerConnection connection, String deviceID, String topic,
-            String name) {
+    void publishDevice(ThingUID connectionBridge, MqttBrokerConnection connection, String deviceID, String topic) {
         Map<String, Object> properties = new HashMap<>();
         properties.put("deviceid", deviceID);
         properties.put("basetopic", topic.substring(0, topic.indexOf("/")));
@@ -113,7 +122,7 @@ public class Homie300Discovery extends AbstractMQTTDiscovery {
         thingDiscovered(DiscoveryResultBuilder
                 .create(new ThingUID(MqttBindingConstants.HOMIE300_MQTT_THING, connectionBridge, deviceID))
                 .withBridge(connectionBridge).withProperties(properties).withRepresentationProperty("deviceid")
-                .withLabel(name).build());
+                .withLabel(deviceID).build());
     }
 
     @Override
@@ -124,4 +133,5 @@ public class Homie300Discovery extends AbstractMQTTDiscovery {
         }
         thingRemoved(new ThingUID(MqttBindingConstants.HOMIE300_MQTT_THING, connectionBridge, deviceID));
     }
+
 }

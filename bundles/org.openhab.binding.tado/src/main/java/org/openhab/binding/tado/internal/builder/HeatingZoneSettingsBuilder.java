@@ -1,10 +1,14 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.tado.internal.builder;
 
@@ -12,9 +16,9 @@ import static org.openhab.binding.tado.internal.api.TadoApiTypeUtils.temperature
 
 import java.io.IOException;
 
-import org.openhab.binding.tado.TadoBindingConstants.FanSpeed;
-import org.openhab.binding.tado.TadoBindingConstants.HvacMode;
-import org.openhab.binding.tado.internal.api.TadoClientException;
+import org.openhab.binding.tado.internal.TadoBindingConstants.FanSpeed;
+import org.openhab.binding.tado.internal.TadoBindingConstants.HvacMode;
+import org.openhab.binding.tado.internal.api.ApiException;
 import org.openhab.binding.tado.internal.api.model.GenericZoneCapabilities;
 import org.openhab.binding.tado.internal.api.model.GenericZoneSetting;
 import org.openhab.binding.tado.internal.api.model.HeatingZoneSetting;
@@ -43,7 +47,7 @@ public class HeatingZoneSettingsBuilder extends ZoneSettingsBuilder {
 
     @Override
     public GenericZoneSetting build(ZoneStateProvider zoneStateProvider, GenericZoneCapabilities capabilities)
-            throws IOException, TadoClientException {
+            throws IOException, ApiException {
         if (mode == HvacMode.OFF) {
             return heatingSetting(false);
         }
@@ -60,7 +64,7 @@ public class HeatingZoneSettingsBuilder extends ZoneSettingsBuilder {
     }
 
     private void addMissingSettingParts(HeatingZoneSetting setting, ZoneStateProvider zoneStateProvider)
-            throws IOException, TadoClientException {
+            throws IOException, ApiException {
         if (setting.getTemperature() == null) {
             TemperatureObject temperatureObject = getCurrentOrDefaultTemperature(zoneStateProvider);
             setting.setTemperature(temperatureObject);
@@ -68,7 +72,7 @@ public class HeatingZoneSettingsBuilder extends ZoneSettingsBuilder {
     }
 
     private TemperatureObject getCurrentOrDefaultTemperature(ZoneStateProvider zoneStateProvider)
-            throws IOException, TadoClientException {
+            throws IOException, ApiException {
         HeatingZoneSetting zoneSetting = (HeatingZoneSetting) zoneStateProvider.getZoneState().getSetting();
 
         if (zoneSetting != null && zoneSetting.getTemperature() != null) {

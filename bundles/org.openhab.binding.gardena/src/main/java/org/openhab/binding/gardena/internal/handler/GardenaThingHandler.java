@@ -1,14 +1,18 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
-package org.openhab.binding.gardena.handler;
+package org.openhab.binding.gardena.internal.handler;
 
-import static org.openhab.binding.gardena.GardenaBindingConstants.*;
+import static org.openhab.binding.gardena.internal.GardenaBindingConstants.*;
 import static org.openhab.binding.gardena.internal.GardenaSmartCommandName.*;
 
 import java.util.Calendar;
@@ -80,12 +84,22 @@ public class GardenaThingHandler extends BaseThingHandler {
     protected void updateSettings(Device device) throws GardenaException {
         if (GardenaSmartImpl.DEVICE_CATEGORY_PUMP.equals(device.getCategory())) {
             Configuration config = editConfiguration();
-            config.put(SETTING_LEAKAGE_DETECTION, device.getSetting(SETTING_LEAKAGE_DETECTION).getValue());
-            config.put(SETTING_OPERATION_MODE, device.getSetting(SETTING_OPERATION_MODE).getValue());
-            config.put(SETTING_TURN_ON_PRESSURE,
-                    ObjectUtils.toString(device.getSetting(SETTING_TURN_ON_PRESSURE).getValue()));
-            updateConfiguration(config);
+
+            if (!equalsSetting(config, device, SETTING_LEAKAGE_DETECTION)
+                    || !equalsSetting(config, device, SETTING_OPERATION_MODE)
+                    || !equalsSetting(config, device, SETTING_TURN_ON_PRESSURE)) {
+                config.put(SETTING_LEAKAGE_DETECTION, device.getSetting(SETTING_LEAKAGE_DETECTION).getValue());
+                config.put(SETTING_OPERATION_MODE, device.getSetting(SETTING_OPERATION_MODE).getValue());
+                config.put(SETTING_TURN_ON_PRESSURE,
+                        ObjectUtils.toString(device.getSetting(SETTING_TURN_ON_PRESSURE).getValue()));
+                updateConfiguration(config);
+            }
         }
+    }
+
+    private boolean equalsSetting(Configuration config, Device device, String key) throws GardenaException {
+        return config.get(key) != null
+                && config.get(key).equals(ObjectUtils.toString(device.getSetting(key).getValue()));
     }
 
     /**
@@ -94,13 +108,21 @@ public class GardenaThingHandler extends BaseThingHandler {
     protected void updateProperties(Device device) throws GardenaException {
         Map<String, String> properties = editProperties();
         Ability deviceInfo = device.getAbility(ABILITY_DEVICE_INFO);
-        properties.put(PROPERTY_MANUFACTURER, deviceInfo.getProperty(PROPERTY_MANUFACTURER).getValueAsString());
-        properties.put(PROPERTY_PRODUCT, deviceInfo.getProperty(PROPERTY_PRODUCT).getValueAsString());
-        properties.put(PROPERTY_SERIALNUMBER, deviceInfo.getProperty(PROPERTY_SERIALNUMBER).getValueAsString());
-        properties.put(PROPERTY_SGTIN, deviceInfo.getProperty(PROPERTY_SGTIN).getValueAsString());
-        properties.put(PROPERTY_VERSION, deviceInfo.getProperty(PROPERTY_VERSION).getValueAsString());
-        properties.put(PROPERTY_CATEGORY, deviceInfo.getProperty(PROPERTY_CATEGORY).getValueAsString());
+        setProperty(properties, deviceInfo, PROPERTY_MANUFACTURER);
+        setProperty(properties, deviceInfo, PROPERTY_PRODUCT);
+        setProperty(properties, deviceInfo, PROPERTY_SERIALNUMBER);
+        setProperty(properties, deviceInfo, PROPERTY_SGTIN);
+        setProperty(properties, deviceInfo, PROPERTY_VERSION);
+        setProperty(properties, deviceInfo, PROPERTY_CATEGORY);
         updateProperties(properties);
+    }
+
+    private void setProperty(Map<String, String> properties, Ability deviceInfo, String propertyName) {
+        try {
+            properties.put(propertyName, deviceInfo.getProperty(propertyName).getValueAsString());
+        } catch (GardenaException ex) {
+            logger.debug("Ignoring missing device property {}", propertyName);
+        }
     }
 
     @Override
@@ -157,7 +179,9 @@ public class GardenaThingHandler extends BaseThingHandler {
                     }
                     return new DecimalType(value);
                 case "Switch":
-                    return Boolean.TRUE.toString().equalsIgnoreCase(value) ? OnOffType.ON : OnOffType.OFF;
+                    return Boolean.TRUE.toString().equalsIgnoreCase(value) || "on".equalsIgnoreCase(value)
+                            ? OnOffType.ON
+                            : OnOffType.OFF;
                 case "DateTime":
                     Calendar cal = DateUtils.parseToCalendar(value);
                     if (cal != null && !cal.before(VALID_DATE_START)) {
@@ -254,6 +278,10 @@ public class GardenaThingHandler extends BaseThingHandler {
                 return WATERING_TIMER_VALVE_5;
             case "watering#watering_timer_6":
                 return WATERING_TIMER_VALVE_6;
+
+            case "manual_watering#manual_watering_timer":
+                return PUMP_MANUAL_WATERING_TIMER;
+
             default:
                 return null;
         }

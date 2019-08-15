@@ -120,7 +120,7 @@ public class ThingDiscoveryService extends AbstractDiscoveryService implements D
 
         DiscoveryResult discoveryResult = DiscoveryResultBuilder.create(uid).withBridge(handler.getThing().getUID())
                 .withLabel(sensor.name + " (" + sensor.manufacturername + ")").withProperty("id", sensorID)
-                .withProperty(UNIQUE_ID, sensor.uniqueid).withRepresentationProperty(UNIQUE_ID).build();
+                .withProperty("uid", sensor.uniqueid).withRepresentationProperty("uid").build();
         thingDiscovered(discoveryResult);
     }
 

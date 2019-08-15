@@ -111,12 +111,7 @@ public class BrokerHandler extends AbstractBrokerHandler implements PinnedCallba
     @Override
     public void dispose() {
         try {
-            if (connection != null) {
-                connection.stop().get(1000, TimeUnit.MILLISECONDS);
-            } else {
-                logger.warn("Trying to dispose handler {} but connection is already null. Most likely this is a bug.",
-                        thing.getUID());
-            }
+            connection.stop().get(1000, TimeUnit.MILLISECONDS);
         } catch (InterruptedException | ExecutionException | TimeoutException ignore) {
         }
         super.dispose();
@@ -225,10 +220,8 @@ public class BrokerHandler extends AbstractBrokerHandler implements PinnedCallba
     @Override
     public void initialize() {
         config = getConfigAs(BrokerHandlerConfig.class);
-        final MqttBrokerConnection connection = createBrokerConnection();
+        connection = createBrokerConnection();
         assignSSLContextProvider(config, connection, this);
-        this.connection = connection;
-
         super.initialize();
     }
 }

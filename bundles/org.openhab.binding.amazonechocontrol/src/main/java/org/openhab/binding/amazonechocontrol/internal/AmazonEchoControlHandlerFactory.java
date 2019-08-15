@@ -1,14 +1,18 @@
 /**
- * Copyright (c) 2010-2018 by the respective copyright holders.
+ * Copyright (c) 2010-2019 Contributors to the openHAB project
  *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the Eclipse Public License v1.0
- * which accompanies this distribution, and is available at
- * http://www.eclipse.org/legal/epl-v10.html
+ * See the NOTICE file(s) distributed with this work for additional
+ * information.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0
+ *
+ * SPDX-License-Identifier: EPL-2.0
  */
 package org.openhab.binding.amazonechocontrol.internal;
 
-import static org.openhab.binding.amazonechocontrol.AmazonEchoControlBindingConstants.*;
+import static org.openhab.binding.amazonechocontrol.internal.AmazonEchoControlBindingConstants.*;
 
 import java.util.HashMap;
 import java.util.Hashtable;
@@ -26,10 +30,10 @@ import org.eclipse.smarthome.core.thing.ThingUID;
 import org.eclipse.smarthome.core.thing.binding.BaseThingHandlerFactory;
 import org.eclipse.smarthome.core.thing.binding.ThingHandler;
 import org.eclipse.smarthome.core.thing.binding.ThingHandlerFactory;
-import org.openhab.binding.amazonechocontrol.handler.AccountHandler;
-import org.openhab.binding.amazonechocontrol.handler.EchoHandler;
-import org.openhab.binding.amazonechocontrol.handler.FlashBriefingProfileHandler;
 import org.openhab.binding.amazonechocontrol.internal.discovery.AmazonEchoDiscovery;
+import org.openhab.binding.amazonechocontrol.internal.handler.AccountHandler;
+import org.openhab.binding.amazonechocontrol.internal.handler.EchoHandler;
+import org.openhab.binding.amazonechocontrol.internal.handler.FlashBriefingProfileHandler;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.ComponentContext;
 import org.osgi.service.component.annotations.Component;
@@ -37,6 +41,8 @@ import org.osgi.service.component.annotations.Reference;
 import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.http.HttpService;
+
+import com.google.gson.Gson;
 
 /**
  * The {@link AmazonEchoControlHandlerFactory} is responsible for creating things and thing
@@ -56,7 +62,9 @@ public class AmazonEchoControlHandlerFactory extends BaseThingHandlerFactory {
     StorageService storageService;
     @Nullable
     BindingServlet bindingServlet;
-
+    @Nullable
+    Gson gson;
+    
     @Override
     public boolean supportsThingType(ThingTypeUID thingTypeUID) {
         return SUPPORTED_THING_TYPES_UIDS.contains(thingTypeUID);
@@ -93,11 +101,17 @@ public class AmazonEchoControlHandlerFactory extends BaseThingHandlerFactory {
         if (storageService == null) {
             return null;
         }
+        Gson gson = this.gson;
+        if (gson == null)
+        {
+            gson = new Gson();
+            this.gson = gson;
+        }
 
         if (thingTypeUID.equals(THING_TYPE_ACCOUNT)) {
             Storage<String> storage = storageService.getStorage(thing.getUID().toString(),
                     String.class.getClassLoader());
-            AccountHandler bridgeHandler = new AccountHandler((Bridge) thing, httpService, storage);
+            AccountHandler bridgeHandler = new AccountHandler((Bridge) thing, httpService, storage, gson);
             registerDiscoveryService(bridgeHandler);
             BindingServlet bindingServlet = this.bindingServlet;
             if (bindingServlet != null) {
@@ -111,7 +125,7 @@ public class AmazonEchoControlHandlerFactory extends BaseThingHandlerFactory {
             return new FlashBriefingProfileHandler(thing, storage);
         }
         if (SUPPORTED_THING_TYPES_UIDS.contains(thingTypeUID)) {
-            return new EchoHandler(thing);
+            return new EchoHandler(thing, gson);
         }
         return null;
     }
@@ -120,7 +134,7 @@ public class AmazonEchoControlHandlerFactory extends BaseThingHandlerFactory {
         AmazonEchoDiscovery discoveryService = new AmazonEchoDiscovery(bridgeHandler);
         discoveryService.activate();
         this.discoveryServiceRegistrations.put(bridgeHandler.getThing().getUID(), bundleContext
-                .registerService(DiscoveryService.class.getName(), discoveryService, new Hashtable<String, Object>()));
+                .registerService(DiscoveryService.class.getName(), discoveryService, new Hashtable<>()));
     }
 
     @Override
@@ -132,15 +146,14 @@ public class AmazonEchoControlHandlerFactory extends BaseThingHandlerFactory {
             }
 
             ServiceRegistration<?> serviceReg = this.discoveryServiceRegistrations
-                    .get(thingHandler.getThing().getUID());
+                    .remove(thingHandler.getThing().getUID());
             if (serviceReg != null) {
                 // remove discovery service, if bridge handler is removed
                 AmazonEchoDiscovery service = (AmazonEchoDiscovery) bundleContext.getService(serviceReg.getReference());
+                serviceReg.unregister();
                 if (service != null) {
                     service.deactivate();
                 }
-                serviceReg.unregister();
-                discoveryServiceRegistrations.remove(thingHandler.getThing().getUID());
             }
         }
     }

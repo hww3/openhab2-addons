@@ -14,12 +14,9 @@ package org.openhab.binding.ihc.internal.ws;
 
 import static org.junit.Assert.fail;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.util.stream.Collectors;
+
+import org.apache.commons.io.IOUtils;
 
 /**
  * Util class to load file content from resource files.
@@ -28,13 +25,12 @@ import java.util.stream.Collectors;
  */
 public class ResourceFileUtils {
     static public String getFileContent(String resourceFile) {
-        try (InputStream inputStream = ResourceFileUtils.class.getClassLoader().getResourceAsStream(resourceFile);
-                Reader inputStreamReader = new InputStreamReader(inputStream);
-                BufferedReader bufferedReader = new BufferedReader(inputStreamReader)) {
-            return bufferedReader.lines().collect(Collectors.joining("\n"));
+        String result = "";
+        try {
+            result = IOUtils.toString(ResourceFileUtils.class.getClassLoader().getResourceAsStream(resourceFile));
         } catch (IOException e) {
             fail("IOException reading xml file '" + resourceFile + "': " + e);
         }
-        return "";
+        return result;
     }
 }
