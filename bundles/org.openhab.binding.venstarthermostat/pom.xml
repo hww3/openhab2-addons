@@ -13,4 +13,12 @@
 
   <name>openHAB Add-ons :: Bundles :: Venstar Thermostat Binding</name>
 
+  <dependencies>
+    <!-- https://mvnrepository.com/artifact/org.eclipse.jetty/jetty-client -->
+    <dependency>
+      <groupId>org.eclipse.jetty</groupId>
+      <artifactId>jetty-client</artifactId>
+      <version>9.4.10.v20180503</version>
+    </dependency>
+  </dependencies>
 </project>
